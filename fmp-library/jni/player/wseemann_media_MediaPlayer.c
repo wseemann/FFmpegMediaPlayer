@@ -499,6 +499,7 @@ void player_decode(void * data) {
                 if (global_audio_state->audio_stream >= 0) {
                 	avcodec_flush_buffers(global_audio_state->audio_st->codec);
                 }
+                thread_notify(MEDIA_SEEK_COMPLETE, 0, 0, 0);
             }
             global_audio_state->seek_req = 0;
             eof = 0;
