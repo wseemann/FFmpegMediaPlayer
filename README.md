@@ -1,16 +1,38 @@
 FFmpegMediaPlayer
 ============================
 
+View the project page <a href=http://wseemann.github.io/FFmpegMediaPlayer/>here</a>.
+
+Donate
+------------
+
+Donations can be made via PayPal:
+
+<a href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=4KK2RERB2VKL8" alt="PayPal - The safer, easier way to pay online!">
+  <img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif">
+</a>
+
 Overview
 --------
 
 FFmpegMediaPlayer is a reimplementation of Android's MediaPlayer class. The FFmpegMediaPlayer class provides a unified interface for playing audio files and streams.
 
+Key Features:
+* Support for API 7+ (Not just API level 10+ like MediaMetadataRetriever)
+* URL support (Unlike MediaMetadataRetriever, see: http://code.google.com/p/android/issues/detail?id=35794)
+
 Supported protocols:
-* file, http, https and mmsh
+* file, http, https, mms and mmsh
 
 Supported formats (audio and video):
-* aac, flac, mp3, ogg, 3gp and more!
+* aac, acc+, avi, flac, mp2, mp3, mp4, ogg, 3gp and more!
+
+Additional support for:
+* ICY Metadata (SHOUTcast metadata)
+
+Demo Application
+------------
+A sample application that makes use of FFmpegMediaMetadataRetriever can be downloaded at: https://github.com/wseemann/FFmpegMediaMetadataRetriever/blob/master/fmmr-demo/FMMRDemo.apk. Note: The sample application is compiled with support for ALL available formats. This results in a larger library and APK. FFmpeg can be recompiled with a subset of codecs enabled for those wanting a smaller size.
 
 Installation
 ------------
@@ -49,7 +71,7 @@ Open the newly created local.properties file and add the following lines:
 
 where <path to NDK> is the path to your Android NDK, for example:
 
-    ndk.dir=/home/wseemann/Android/android-ndk-r8d
+    ndk.dir=/home/wseemann/Android/android-ndk-r8e
 
 and <path to target libs folder> is the path to the "libs" folder in the project that will use the
 library, for example:
@@ -118,7 +140,7 @@ Sample code:
 
 FFmpeg
 -----------
-This software uses code of <a href=http://ffmpeg.org>FFmpeg</a> licensed under the <a href=http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>LGPLv2.1</a> and its source can be downloaded <a href=https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-library/ffmpeg-0.11.1-android-2012-09-18.tar.gz>here</a>.
+This software uses code of <a href=http://ffmpeg.org>FFmpeg</a> licensed under the <a href=http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>LGPLv2.1</a> and its source can be downloaded <a href=https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-library/ffmpeg-2.1-android-2013-11-13.tar.gz>here</a>.
 
 License
 ------------
@@ -139,5 +161,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-```
-
