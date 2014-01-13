@@ -16,11 +16,17 @@ if [ "$NDK" = "" ] || [ ! -d $NDK ]; then
 	exit 1
 fi
 
+if [ "$#" -eq 1 ] && [ "$1" == "--enable-openssl" ]; then
+    export SSL="$WORKING_DIR/jni/openssl-android"
+    export SSL_LD="$WORKING_DIR"
+    rm -rf $WORKING_DIR/jni/ffmpeg/ffmpeg/*
+fi
+
 if [ ! -d ffmpeg ]; then
     # Unpackage the FFmpeg archive
-    tar -xvf ffmpeg-0.11.1-android-2012-09-18.tar.gz
-    rm ffmpeg-0.11.1-android-2012-09-18.tar.gz
-    mv ffmpeg-0.11.1-android-2012-09-18 $FFMPEG_BUILD_DIR
+    tar -xvf ffmpeg-2.1-android-2013-11-13.tar.gz
+    # rm ffmpeg-0.11.1-android-2012-09-18.tar.gz
+    mv ffmpeg-2.1-android-2013-11-13 $FFMPEG_BUILD_DIR
 
     # Prepare the FFmpeg archive for building
     cd $FFMPEG_BUILD_DIR
