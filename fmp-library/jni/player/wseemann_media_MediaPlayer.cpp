@@ -20,7 +20,6 @@
 #define LOG_TAG "FFmpegMediaPlayer-JNI"
 
 #include "android/log.h"
-#include "androidlog.h"
 #include <mediaplayer.h>
 #include <stdio.h>
 #include <assert.h>
