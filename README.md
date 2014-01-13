@@ -18,13 +18,12 @@ Overview
 FFmpegMediaPlayer is a reimplementation of Android's MediaPlayer class. The FFmpegMediaPlayer class provides a unified interface for playing audio files and streams.
 
 Key Features:
-* Support for API 7+ (Not just API level 10+ like MediaMetadataRetriever)
-* URL support (Unlike MediaMetadataRetriever, see: http://code.google.com/p/android/issues/detail?id=35794)
+* Support for additional formats and protocols not provided by Android's MediaPlayer class
 
 Supported protocols:
 * file, http, https, mms and mmsh
 
-Supported formats (audio and video):
+Supported formats (audio only):
 * aac, acc+, avi, flac, mp2, mp3, mp4, ogg, 3gp and more!
 
 Additional support for:
@@ -32,7 +31,7 @@ Additional support for:
 
 Demo Application
 ------------
-A sample application that makes use of FFmpegMediaMetadataRetriever can be downloaded at: https://github.com/wseemann/FFmpegMediaMetadataRetriever/blob/master/fmmr-demo/FMMRDemo.apk. Note: The sample application is compiled with support for ALL available formats. This results in a larger library and APK. FFmpeg can be recompiled with a subset of codecs enabled for those wanting a smaller size.
+TBA
 
 Installation
 ------------
@@ -148,7 +147,7 @@ License
 ```
 FFmpegMediaPlayer: A unified interface for playing audio files and streams.
 
-Copyright 2013 William Seemann
+Copyright 2014 William Seemann
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
