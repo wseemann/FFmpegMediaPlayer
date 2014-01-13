@@ -2170,7 +2170,7 @@ public class FFmpegMediaPlayer
         Log.i(TAG, "Minimum buffer size set to: " + minBufferSize);
         
         if (sessionId != 0) {
-        	setAudioSessionIdCompat(streamType, sampleRateInHz, channelConfig,
+        	mAudioTrack = setAudioSessionIdCompat(streamType, sampleRateInHz, channelConfig,
         			AudioFormat.ENCODING_PCM_16BIT, minBufferSize, AudioTrack.MODE_STREAM, sessionId);
         } else {
         	mAudioTrack = new AudioTrack(streamType, sampleRateInHz, channelConfig,
