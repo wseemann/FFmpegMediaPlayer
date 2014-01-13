@@ -1,7 +1,7 @@
 /*
  * FFmpegMediaPlayer: A unified interface for playing audio files and streams.
  *
- * Copyright 2013 William Seemann
+ * Copyright 2014 William Seemann
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,34 +18,36 @@
 
 package wseemann.media;
 
-import java.io.File;
-import java.io.FileDescriptor;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
 import android.annotation.SuppressLint;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
-import android.graphics.Bitmap;
-import android.media.AudioFormat;
-import android.media.AudioManager;
-import android.media.AudioTrack;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Parcel;
-import android.os.Parcelable;
 import android.os.PowerManager;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.graphics.Bitmap;
+import android.graphics.SurfaceTexture;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
+
+import java.io.File;
+import java.io.FileDescriptor;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 
 /**
  * MediaPlayer class can be used to control playback
@@ -332,8 +334,8 @@ import android.view.SurfaceHolder;
  *         the state. Calling this method in an invalid state transfers the
  *         object to the <em>Error</em> state. </p></td></tr>
  * <tr><td>pause </p></td>
- *     <td>{Started, Paused, PlaybackCompleted}</p></td>
- *     <td>{Idle, Initialized, Prepared, Stopped, Error}</p></td>
+ *     <td>{Started, Paused}</p></td>
+ *     <td>{Idle, Initialized, Prepared, Stopped, PlaybackCompleted, Error}</p></td>
  *     <td>Successful invoke of this method in a valid state transfers the
  *         object to the <em>Paused</em> state. Calling this method in an
  *         invalid state transfers the object to the <em>Error</em> state.</p></td></tr>
@@ -398,10 +400,6 @@ import android.view.SurfaceHolder;
  *     <td>{} </p></td>
  *     <td>This method can be called in any state and calling it does not change
  *         the object state. </p></td></tr>
- * <tr><td>setVideoScalingMode </p></td>
- *     <td>{Initialized, Prepared, Started, Paused, Stopped, PlaybackCompleted} </p></td>
- *     <td>{Idle, Error}</p></td>
- *     <td>Successful invoke of this method does not change the state.</p></td></tr>
  * <tr><td>setLooping </p></td>
  *     <td>{Idle, Initialized, Stopped, Prepared, Started, Paused,
  *         PlaybackCompleted}</p></td>
@@ -466,22 +464,6 @@ import android.view.SurfaceHolder;
  *     <td>Successful invoke of this method in a valid state transfers the
  *         object to the <em>Stopped</em> state. Calling this method in an
  *         invalid state transfers the object to the <em>Error</em> state.</p></td></tr>
- * <tr><td>getTrackInfo </p></td>
- *     <td>{Prepared, Started, Stopped, Paused, PlaybackCompleted}</p></td>
- *     <td>{Idle, Initialized, Error}</p></td>
- *     <td>Successful invoke of this method does not change the state.</p></td></tr>
- * <tr><td>addTimedTextSource </p></td>
- *     <td>{Prepared, Started, Stopped, Paused, PlaybackCompleted}</p></td>
- *     <td>{Idle, Initialized, Error}</p></td>
- *     <td>Successful invoke of this method does not change the state.</p></td></tr>
- * <tr><td>selectTrack </p></td>
- *     <td>{Prepared, Started, Stopped, Paused, PlaybackCompleted}</p></td>
- *     <td>{Idle, Initialized, Error}</p></td>
- *     <td>Successful invoke of this method does not change the state.</p></td></tr>
- * <tr><td>deselectTrack </p></td>
- *     <td>{Prepared, Started, Stopped, Paused, PlaybackCompleted}</p></td>
- *     <td>{Idle, Initialized, Error}</p></td>
- *     <td>Successful invoke of this method does not change the state.</p></td></tr>
  *
  * </table>
  *
@@ -516,13 +498,13 @@ import android.view.SurfaceHolder;
  */
 public class FFmpegMediaPlayer
 {
-
-    private static final int AVCODEC_MAX_AUDIO_FRAME_SIZE = 200000;
-    private static final byte[] mAudioFrameBuffer = new byte[AVCODEC_MAX_AUDIO_FRAME_SIZE];
-    private static final int[] mAudioFrameBufferDataLength = new int[1];
-    private static List<byte []> mAudioBuffer = null;
-    private static int mMinBufferSize = 0;
-    private static int mBytesWritten = 0;
+	
+    private final int AVCODEC_MAX_AUDIO_FRAME_SIZE = 200000;
+    private final byte[] mAudioFrameBuffer = new byte[AVCODEC_MAX_AUDIO_FRAME_SIZE];
+    private final int[] mAudioFrameBufferDataLength = new int[1];
+    private List<byte []> mAudioBuffer = null;
+    private AudioTrack mAudioTrack = null;
+    private byte [] mBuffer = null;
 	
     /**
        Constant to retrieve only the new metadata since the last
@@ -557,15 +539,21 @@ public class FFmpegMediaPlayer
      */
     public static final boolean BYPASS_METADATA_FILTER = false;
 
+    /*static {
+        System.loadLibrary("media_jni");
+        native_init();
+    }*/
+    
     private final static String TAG = "FFmpegMediaPlayer";
-	
-	@SuppressLint("SdCardPath")
+    
+    @SuppressLint("SdCardPath")
 	private static final String LIBRARY_PATH = "/data/data/";
 	
 	private static final String [] JNI_LIBRARIES = {
 		"libavutil.so",
 		"libavcodec.so",
 		"libavformat.so",
+		"libswresample.so",
 		"libffmpeg_mediaplayer_jni.so"		
 	};
 	
@@ -616,21 +604,19 @@ public class FFmpegMediaPlayer
     	}
     	
         native_init();
-        bind_variables(mAudioFrameBuffer, mAudioFrameBufferDataLength);
+        initializeStaticCompatMethods();
     }
-    
-    private static AudioTrack mAudioTrack = null;
     
     // Name of the remote interface for the media player. Must be kept
     // in sync with the 2nd parameter of the IMPLEMENT_META_INTERFACE
     // macro invocation in IMediaPlayer.cpp
-    private final static String IMEDIA_PLAYER = "android.media.IMediaPlayer";
+    private final static String IMEDIA_PLAYER = "wseemann.media.IMediaPlayer";
 
     private int mNativeContext; // accessed by native methods
     private int mNativeSurfaceTexture;  // accessed by native methods
     private int mListenerContext; // accessed by native methods
     private SurfaceHolder mSurfaceHolder;
-    private static EventHandler mEventHandler;
+    private EventHandler mEventHandler;
     private PowerManager.WakeLock mWakeLock = null;
     private boolean mScreenOnWhilePlaying;
     private boolean mStayAwake;
@@ -642,11 +628,8 @@ public class FFmpegMediaPlayer
      * to free the resources. If not released, too many MediaPlayer instances may
      * result in an exception.</p>
      */
-	public FFmpegMediaPlayer() {
-		super();
-		
-		initializeStaticCompatMethods();
-		
+    public FFmpegMediaPlayer() {
+
         Looper looper;
         if ((looper = Looper.myLooper()) != null) {
             mEventHandler = new EventHandler(this, looper);
@@ -656,24 +639,18 @@ public class FFmpegMediaPlayer
             mEventHandler = null;
         }
 
-        // TODO: Add back in weak reference code
-	}
+        /* Native setup requires a weak reference to our object.
+         * It's easier to create it here than in C++.
+         */
+        mBuffer = new byte[200000];
+        native_setup(new WeakReference<FFmpegMediaPlayer>(this), mBuffer);
+    }
 
     /*
      * Update the MediaPlayer SurfaceTexture.
      * Call after setting a new display surface.
      */
     private native void _setVideoSurface(Surface surface);
-
-    /* Do not change these values (starting with INVOKE_ID) without updating
-     * their counterparts in include/media/mediaplayer.h!
-     */
-    private static final int INVOKE_ID_GET_TRACK_INFO = 1;
-    private static final int INVOKE_ID_ADD_EXTERNAL_SOURCE = 2;
-    private static final int INVOKE_ID_ADD_EXTERNAL_SOURCE_FD = 3;
-    private static final int INVOKE_ID_SELECT_TRACK = 4;
-    private static final int INVOKE_ID_DESELECT_TRACK = 5;
-    private static final int INVOKE_ID_SET_VIDEO_SCALE_MODE = 6;
 
     /**
      * Create a request parcel which can be routed to the native media
@@ -697,7 +674,7 @@ public class FFmpegMediaPlayer
      * parcels for the request and reply. Both payloads' format is a
      * convention between the java caller and the native player.
      * Must be called after setDataSource to make sure a native player
-     * exists. On failure, a RuntimeException is thrown.
+     * exists.
      *
      * @param request Parcel with the data for the extension. The
      * caller must use {@link #newRequest()} to get one.
@@ -705,14 +682,13 @@ public class FFmpegMediaPlayer
      * @param reply Output parcel with the data returned by the
      * native player.
      *
+     * @return The status code see utils/Errors.h
      * {@hide}
      */
-    public void invoke(Parcel request, Parcel reply) {
+    public int invoke(Parcel request, Parcel reply) {
         int retcode = native_invoke(request, reply);
         reply.setDataPosition(0);
-        if (retcode != 0) {
-            throw new RuntimeException("failure code: " + retcode);
-        }
+        return retcode;
     }
 
     /**
@@ -766,64 +742,6 @@ public class FFmpegMediaPlayer
         updateSurfaceScreenOn();
     }
 
-    /* Do not change these video scaling mode values below without updating
-     * their counterparts in system/window.h! Please do not forget to update
-     * {@link #isVideoScalingModeSupported} when new video scaling modes
-     * are added.
-     */
-    /**
-     * Specifies a video scaling mode. The content is stretched to the
-     * surface rendering area. When the surface has the same aspect ratio
-     * as the content, the aspect ratio of the content is maintained;
-     * otherwise, the aspect ratio of the content is not maintained when video
-     * is being rendered. Unlike {@link #VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING},
-     * there is no content cropping with this video scaling mode.
-     */
-    public static final int VIDEO_SCALING_MODE_SCALE_TO_FIT = 1;
-
-    /**
-     * Specifies a video scaling mode. The content is scaled, maintaining
-     * its aspect ratio. The whole surface area is always used. When the
-     * aspect ratio of the content is the same as the surface, no content
-     * is cropped; otherwise, content is cropped to fit the surface.
-     */
-    public static final int VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING = 2;
-    /**
-     * Sets video scaling mode. To make the target video scaling mode
-     * effective during playback, this method must be called after
-     * data source is set. If not called, the default video
-     * scaling mode is {@link #VIDEO_SCALING_MODE_SCALE_TO_FIT}.
-     *
-     * <p> The supported video scaling modes are:
-     * <ul>
-     * <li> {@link #VIDEO_SCALING_MODE_SCALE_TO_FIT}
-     * <li> {@link #VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING}
-     * </ul>
-     *
-     * @param mode target video scaling mode. Most be one of the supported
-     * video scaling modes; otherwise, IllegalArgumentException will be thrown.
-     *
-     * @see MediaPlayer#VIDEO_SCALING_MODE_SCALE_TO_FIT
-     * @see MediaPlayer#VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
-     */
-    public void setVideoScalingMode(int mode) {
-        if (!isVideoScalingModeSupported(mode)) {
-            final String msg = "Scaling mode " + mode + " is not supported";
-            throw new IllegalArgumentException(msg);
-        }
-        Parcel request = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
-        try {
-            request.writeInterfaceToken(IMEDIA_PLAYER);
-            request.writeInt(INVOKE_ID_SET_VIDEO_SCALE_MODE);
-            request.writeInt(mode);
-            invoke(request, reply);
-        } finally {
-            request.recycle();
-            reply.recycle();
-        }
-    }
-
     /**
      * Convenience method to create a MediaPlayer for a given Uri.
      * On success, {@link #prepare()} will already have been called and must not be called again.
@@ -854,9 +772,8 @@ public class FFmpegMediaPlayer
     public static FFmpegMediaPlayer create(Context context, Uri uri, SurfaceHolder holder) {
 
         try {
-        	FFmpegMediaPlayer mp = new FFmpegMediaPlayer();
-            // TODO: add this code back
-            //mp.setDataSource(context, uri);
+            FFmpegMediaPlayer mp = new FFmpegMediaPlayer();
+            mp.setDataSource(context, uri);
             if (holder != null) {
                 mp.setDisplay(holder);
             }
@@ -896,8 +813,7 @@ public class FFmpegMediaPlayer
             if (afd == null) return null;
 
             FFmpegMediaPlayer mp = new FFmpegMediaPlayer();
-            // TODO: add this code back
-            //mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+            mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             afd.close();
             mp.prepare();
             return mp;
@@ -915,42 +831,116 @@ public class FFmpegMediaPlayer
     }
 
     /**
-     * Sets the data source (file-path or http/rtsp URL) to use.
+     * Sets the data source as a content Uri.
      *
-     * @param context the current context
-     * @param id the database identifier of the file to play
-     *
-     * <p>When <code>path</code> refers to a local file, the file may actually be opened by a
-     * process other than the calling application.  This implies that the pathname
-     * should be an absolute path (as any other process runs with unspecified current working
-     * directory), and that the pathname should reference a world-readable file.
-     * As an alternative, the application could first open the file for reading,
-     * and then use the file descriptor form {@link #setDataSource(FileDescriptor)}.
+     * @param context the Context to use when resolving the Uri
+     * @param uri the Content URI of the data you want to play
+     * @throws IllegalStateException if it is called in an invalid state
      */
-    public void setDataSource(Context context, long id)
-    		throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {
+    public void setDataSource(Context context, Uri uri)
+        throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {
+        setDataSource(context, uri, null);
     }
-    
+
+    /**
+     * Sets the data source as a content Uri.
+     *
+     * @param context the Context to use when resolving the Uri
+     * @param uri the Content URI of the data you want to play
+     * @param headers the headers to be sent together with the request for the data
+     * @throws IllegalStateException if it is called in an invalid state
+     */
+    public void setDataSource(Context context, Uri uri, Map<String, String> headers)
+        throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {
+
+        String scheme = uri.getScheme();
+        if(scheme == null || scheme.equals("file")) {
+            setDataSource(uri.getPath());
+            return;
+        }
+
+        AssetFileDescriptor fd = null;
+        try {
+            ContentResolver resolver = context.getContentResolver();
+            fd = resolver.openAssetFileDescriptor(uri, "r");
+            if (fd == null) {
+                return;
+            }
+            // Note: using getDeclaredLength so that our behavior is the same
+            // as previous versions when the content provider is returning
+            // a full file.
+            if (fd.getDeclaredLength() < 0) {
+                setDataSource(fd.getFileDescriptor());
+            } else {
+                setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getDeclaredLength());
+            }
+            return;
+        } catch (SecurityException ex) {
+        } catch (IOException ex) {
+        } finally {
+            if (fd != null) {
+                fd.close();
+            }
+        }
+
+        Log.d(TAG, "Couldn't open file on client side, trying server side");
+        setDataSource(uri.toString(), headers);
+        return;
+    }
+
     /**
      * Sets the data source (file-path or http/rtsp URL) to use.
      *
      * @param path the path of the file, or the http/rtsp URL of the stream you want to play
      * @throws IllegalStateException if it is called in an invalid state
-     *
-     * <p>When <code>path</code> refers to a local file, the file may actually be opened by a
-     * process other than the calling application.  This implies that the pathname
-     * should be an absolute path (as any other process runs with unspecified current working
-     * directory), and that the pathname should reference a world-readable file.
-     * As an alternative, the application could first open the file for reading,
-     * and then use the file descriptor form {@link #setDataSource(FileDescriptor)}.
      */
-    public void setDataSource(String path)
-            throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {
-        _setDataSource(path);
+    public native void setDataSource(String path)
+            throws IOException, IllegalArgumentException, SecurityException, IllegalStateException;
+
+    /**
+     * Sets the data source (file-path or http/rtsp URL) to use.
+     *
+     * @param path the path of the file, or the http/rtsp URL of the stream you want to play
+     * @param headers the headers associated with the http request for the stream you want to play
+     * @throws IllegalStateException if it is called in an invalid state
+     * @hide pending API council
+     */
+    public void setDataSource(String path, Map<String, String> headers)
+            throws IOException, IllegalArgumentException, SecurityException, IllegalStateException
+    {
+        String[] keys = null;
+        String[] values = null;
+
+        if (headers != null) {
+            keys = new String[headers.size()];
+            values = new String[headers.size()];
+
+            int i = 0;
+            for (Map.Entry<String, String> entry: headers.entrySet()) {
+                keys[i] = entry.getKey();
+                values[i] = entry.getValue();
+                ++i;
+            }
+        }
+        _setDataSource(path, keys, values);
     }
 
-    private native void _setDataSource(String path)
+    private native void _setDataSource(
+        String path, String[] keys, String[] values)
         throws IOException, IllegalArgumentException, SecurityException, IllegalStateException;
+
+    /**
+     * Sets the data source (FileDescriptor) to use. It is the caller's responsibility
+     * to close the file descriptor. It is safe to do so as soon as this call returns.
+     *
+     * @param fd the FileDescriptor for the file you want to play
+     * @throws IllegalStateException if it is called in an invalid state
+     */
+    public void setDataSource(FileDescriptor fd)
+            throws IOException, IllegalArgumentException, IllegalStateException {
+        // intentionally less than LONG_MAX
+        setDataSource(fd, 0, 0x7ffffffffffffffL);
+    }
 
     /**
      * Sets the data source (FileDescriptor) to use.  The FileDescriptor must be
@@ -964,7 +954,7 @@ public class FFmpegMediaPlayer
      */
     public native void setDataSource(FileDescriptor fd, long offset, long length)
             throws IOException, IllegalArgumentException, IllegalStateException;
-    
+
     /**
      * Prepares the player for playback, synchronously.
      *
@@ -987,22 +977,7 @@ public class FFmpegMediaPlayer
      * @throws IllegalStateException if it is called in an invalid state
      */
     public native void prepareAsync() throws IllegalStateException;
-    
-    private static void initAudioTrack(int sampleRateInHz, int channelConfig) {
-    	Log.i(TAG, "initAudioTrack called sampleRateInHz: " + sampleRateInHz + " channelConfig: " + channelConfig);
-    	
-    	channelConfig = (channelConfig == 1) ? AudioFormat.CHANNEL_OUT_MONO : 
-            AudioFormat.CHANNEL_OUT_STEREO;
-    	
-    	mMinBufferSize = AudioTrack.getMinBufferSize(sampleRateInHz, channelConfig, AudioFormat.ENCODING_PCM_16BIT) * 4;
-    	mBytesWritten = 0;
-    	
-    	Log.i(TAG, "Minimum buffer size set to: " + mMinBufferSize);
-    	
-    	mAudioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, sampleRateInHz, channelConfig,
-                AudioFormat.ENCODING_PCM_16BIT, mMinBufferSize, AudioTrack.MODE_STREAM);
-    }
-    
+
     /**
      * Starts or resumes playback. If playback had previously been paused,
      * playback will continue from where it was paused. If playback had
@@ -1013,16 +988,14 @@ public class FFmpegMediaPlayer
      */
     public  void start() throws IllegalStateException {
         stayAwake(true);
-
         if (mAudioTrack != null) {
         	mAudioTrack.play();
         }
-        
         _start();
     }
 
     private native void _start() throws IllegalStateException;
-    
+
     /**
      * Stops playback after playback has been stopped or paused.
      *
@@ -1030,10 +1003,10 @@ public class FFmpegMediaPlayer
      * initialized.
      */
     public void stop() throws IllegalStateException {
-        if (mAudioTrack != null) {
-        	mAudioTrack.stop();
-        }
         stayAwake(false);
+        if (mAudioTrack != null) {
+            mAudioTrack.stop();
+        }
         _stop();
     }
 
@@ -1049,12 +1022,12 @@ public class FFmpegMediaPlayer
         stayAwake(false);
         if (mAudioTrack != null) {
         	mAudioTrack.pause();
-        }
+        } 
         _pause();
     }
 
     private native void _pause() throws IllegalStateException;
-    
+
     /**
      * Set the low-level power management behavior for this MediaPlayer.  This
      * can be used when the MediaPlayer is not playing through a SurfaceHolder
@@ -1121,7 +1094,7 @@ public class FFmpegMediaPlayer
         mStayAwake = awake;
         updateSurfaceScreenOn();
     }
-    
+
     private void updateSurfaceScreenOn() {
         if (mSurfaceHolder != null) {
             mSurfaceHolder.setKeepScreenOn(mScreenOnWhilePlaying && mStayAwake);
@@ -1154,8 +1127,6 @@ public class FFmpegMediaPlayer
      * Checks whether the MediaPlayer is playing.
      *
      * @return true if currently playing, false otherwise
-     * @throws IllegalStateException if the internal player engine has not been
-     * initialized or has been released.
      */
     public native boolean isPlaying();
 
@@ -1183,48 +1154,106 @@ public class FFmpegMediaPlayer
     public native int getDuration();
 
     /**
-     * Set the MediaPlayer to start when this MediaPlayer finishes playback
-     * (i.e. reaches the end of the stream).
-     * The media framework will attempt to transition from this player to
-     * the next as seamlessly as possible. The next player can be set at
-     * any time before completion. The next player must be prepared by the
-     * app, and the application should not call start() on it.
-     * The next MediaPlayer must be different from 'this'. An exception
-     * will be thrown if next == this.
-     * The application may call setNextMediaPlayer(null) to indicate no
-     * next player should be started at the end of playback.
-     * If the current player is looping, it will keep looping and the next
-     * player will not be started.
+     * Gets the media metadata.
      *
-     * @param next the player to start after this one completes playback.
+     * @param update_only controls whether the full set of available
+     * metadata is returned or just the set that changed since the
+     * last call. See {@see #METADATA_UPDATE_ONLY} and {@see
+     * #METADATA_ALL}.
      *
+     * @param apply_filter if true only metadata that matches the
+     * filter is returned. See {@see #APPLY_METADATA_FILTER} and {@see
+     * #BYPASS_METADATA_FILTER}.
+     *
+     * @return The metadata, possibly empty. null if an error occured.
+     // FIXME: unhide.
+     * {@hide}
      */
-    public native void setNextMediaPlayer(FFmpegMediaPlayer next);
-    
+    public Metadata getMetadata(final boolean update_only,
+                                final boolean apply_filter) {
+        //Parcel reply = Parcel.obtain();
+        Metadata data = new Metadata();
+
+        HashMap<String, String> metadata = native_getMetadata();
+        /*if (!native_getMetadata(update_only, apply_filter, reply)) {
+            reply.recycle();
+            return null;
+        }*/
+
+        // Metadata takes over the parcel, don't recycle it unless
+        // there is an error.
+        /*if (!data.parse(reply)) {
+            reply.recycle();
+            return null;
+        }
+        return data;*/
+        
+        if (!data.parse(metadata)) {
+            return null;
+        }
+        
+    	return data;
+    }
+
+    /**
+     * Set a filter for the metadata update notification and update
+     * retrieval. The caller provides 2 set of metadata keys, allowed
+     * and blocked. The blocked set always takes precedence over the
+     * allowed one.
+     * Metadata.MATCH_ALL and Metadata.MATCH_NONE are 2 sets available as
+     * shorthands to allow/block all or no metadata.
+     *
+     * By default, there is no filter set.
+     *
+     * @param allow Is the set of metadata the client is interested
+     *              in receiving new notifications for.
+     * @param block Is the set of metadata the client is not interested
+     *              in receiving new notifications for.
+     * @return The call status code.
+     *
+     // FIXME: unhide.
+     * {@hide}
+     */
+    public int setMetadataFilter(Set<String> allow, Set<String> block) {
+    	int i = 0;
+    	
+    	String [] allowed = new String[allow.size()];
+    	String [] blocked = new String[block.size()];
+    	
+    	for (String s : allow) {
+    		allowed[i] = s;
+    	    i++;
+    	}
+    	
+    	i = 0;
+    	
+    	for (String s : block) {
+    		blocked[i] = s;
+    	    i++;
+    	}
+    	
+        return native_setMetadataFilter(allowed, blocked);
+    }
+
     /**
      * Releases resources associated with this MediaPlayer object.
      * It is considered good practice to call this method when you're
-     * done using the MediaPlayer. In particular, whenever an Activity
-     * of an application is paused (its onPause() method is called),
-     * or stopped (its onStop() method is called), this method should be
-     * invoked to release the MediaPlayer object, unless the application
-     * has a special need to keep the object around. In addition to
-     * unnecessary resources (such as memory and instances of codecs)
-     * being held, failure to call this method immediately if a
-     * MediaPlayer object is no longer needed may also lead to
-     * continuous battery consumption for mobile devices, and playback
-     * failure for other applications if no multiple instances of the
-     * same codec are supported on a device. Even if multiple instances
-     * of the same codec are supported, some performance degradation
-     * may be expected when unnecessary multiple instances are used
-     * at the same time.
+     * done using the MediaPlayer. For instance, whenever the Activity
+     * of an application is paused, this method should be invoked to
+     * release the MediaPlayer object. In addition to unnecessary resources
+     * (such as memory and instances of codecs) being hold, failure to
+     * call this method immediately if a MediaPlayer object is no longer
+     * needed may also lead to continuous battery consumption for mobile
+     * devices, and playback failure if no multiple instances of the
+     * same codec is supported on a device.
      */
     public void release() {
         if (mAudioTrack != null) {
         	mAudioTrack.release();
         	mAudioTrack = null;
-        }
-    	stayAwake(false);
+        } 
+    	
+        stayAwake(false);
         updateSurfaceScreenOn();
         mOnPreparedListener = null;
         mOnBufferingUpdateListener = null;
@@ -1236,9 +1265,9 @@ public class FFmpegMediaPlayer
         mOnTimedTextListener = null;
         _release();
     }
-    
+
     private native void _release();
-    
+
     /**
      * Resets the MediaPlayer to its uninitialized state. After calling
      * this method, you will have to initialize it again by setting the
@@ -1251,7 +1280,8 @@ public class FFmpegMediaPlayer
         if (mAudioTrack != null) {
         	mAudioTrack.release();
         	mAudioTrack = null;
-        }
+        } 
+        
         // make sure none of the listeners get called anymore
         mEventHandler.removeCallbacksAndMessages(null);
     }
@@ -1295,13 +1325,8 @@ public class FFmpegMediaPlayer
      * @param leftVolume left volume scalar
      * @param rightVolume right volume scalar
      */
-    //public native void setVolume(float leftVolume, float rightVolume);
-    public void setVolume(float leftVolume, float rightVolume) {
-    	if (mAudioTrack != null) {
-    		mAudioTrack.setStereoVolume(leftVolume, rightVolume);
-    	}
-    }
-    
+    public native void setVolume(float leftVolume, float rightVolume);
+
     /**
      * Currently not implemented, returns null.
      * @deprecated
@@ -1325,94 +1350,16 @@ public class FFmpegMediaPlayer
      * This method must be called before one of the overloaded <code> setDataSource </code> methods.
      * @throws IllegalStateException if it is called in an invalid state
      */
-    //public native void setAudioSessionId(int sessionId)  throws IllegalArgumentException, IllegalStateException;
-    public void setAudioSessionId(int sessionId)  throws IllegalArgumentException, IllegalStateException {
-    	if (mAudioTrack != null) {
-    		setAudioSessionIdCompat(mAudioTrack, sessionId);
-    	}
-    }
-    
+    public native void setAudioSessionId(int sessionId)  throws IllegalArgumentException, IllegalStateException;
+
     /**
      * Returns the audio session ID.
      *
      * @return the audio session ID. {@see #setAudioSessionId(int)}
      * Note that the audio session ID is 0 only if a problem occured when the MediaPlayer was contructed.
      */
-    //public native int getAudioSessionId();
-    public int getAudioSessionId() {
-    	if (mAudioTrack == null) {
-    		return 0;
-    	} else {
-    		return getAudioSessionIdCompat(mAudioTrack);
-    	}    	
-    }
-    
-    private static Method sMethodRegisterSetAudioSessionId;
-    private static Method sMethodRegisterGetAudioSessionId;
-	
-    private static void initializeStaticCompatMethods() {
-        try {
-        	sMethodRegisterSetAudioSessionId = AudioTrack.class.getMethod(
-                    "setAudioSessionId", int.class);
-        	sMethodRegisterGetAudioSessionId = AudioTrack.class.getMethod(
-                    "getAudioSessionId");
-        } catch (NoSuchMethodException e) {
-            // Silently fail when running on an OS before API level 9.
-        }
-    }
-    
-    private static void setAudioSessionIdCompat(AudioTrack audioTrack, int sessionId) {
-		if (sMethodRegisterSetAudioSessionId == null) {
-            return;
-		}
+    public native int getAudioSessionId();
 
-        try {
-        	sMethodRegisterSetAudioSessionId.invoke(audioTrack, sessionId);
-        } catch (InvocationTargetException e) {
-            // Unpack original exception when possible
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else {
-                // Unexpected checked exception; wrap and re-throw
-                throw new RuntimeException(e);
-            }
-        } catch (IllegalAccessException e) {
-            Log.e(TAG, "IllegalAccessException invoking setAudioSessionId.");
-            e.printStackTrace();
-        }
-    }
-    
-	private static int getAudioSessionIdCompat(AudioTrack audioTrack) {
-        int audioSessionId = 0;
-		
-		if (sMethodRegisterGetAudioSessionId == null) {
-            return audioSessionId;
-		}
-
-        try {
-        	audioSessionId = (Integer) sMethodRegisterGetAudioSessionId.invoke(audioTrack);
-        } catch (InvocationTargetException e) {
-            // Unpack original exception when possible
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else {
-                // Unexpected checked exception; wrap and re-throw
-                throw new RuntimeException(e);
-            }
-        } catch (IllegalAccessException e) {
-            Log.e(TAG, "IllegalAccessException invoking getAudioSessionId.");
-            e.printStackTrace();
-        }
-        
-        return audioSessionId;
-    }
-    
     /**
      * Attaches an auxiliary effect to the player. A typical auxiliary effect is a reverberation
      * effect which can be applied on any sound source that directs a certain amount of its
@@ -1432,6 +1379,23 @@ public class FFmpegMediaPlayer
     /* Do not change these values (starting with KEY_PARAMETER) without updating
      * their counterparts in include/media/mediaplayer.h!
      */
+    /*
+     * Key used in setParameter method.
+     * Indicates the index of the timed text track to be enabled/disabled.
+     * The index includes both the in-band and out-of-band timed text.
+     * The index should start from in-band text if any. Application can retrieve the number
+     * of in-band text tracks by using MediaMetadataRetriever::extractMetadata().
+     * Note it might take a few hundred ms to scan an out-of-band text file
+     * before displaying it.
+     */
+    private static final int KEY_PARAMETER_TIMED_TEXT_TRACK_INDEX = 1000;
+    /*
+     * Key used in setParameter method.
+     * Used to add out-of-band timed text source path.
+     * Application can add multiple text sources by calling setParameter() with
+     * KEY_PARAMETER_TIMED_TEXT_ADD_OUT_OF_BAND_SOURCE multiple times.
+     */
+    private static final int KEY_PARAMETER_TIMED_TEXT_ADD_OUT_OF_BAND_SOURCE = 1001;
 
     // There are currently no defined keys usable from Java with get*Parameter.
     // But if any keys are defined, the order must be kept in sync with include/media/mediaplayer.h.
@@ -1476,7 +1440,7 @@ public class FFmpegMediaPlayer
         return ret;
     }
 
-    /*
+    /**
      * Gets the value of the parameter indicated by key.
      * @param key key indicates the parameter to get.
      * @param reply value of the parameter to get.
@@ -1538,7 +1502,7 @@ public class FFmpegMediaPlayer
      */
     public native void setAuxEffectSendLevel(float level);
 
-    /*
+    /**
      * @param request Parcel destinated to the media player. The
      *                Interface token must be set to the IMediaPlayer
      *                one to be routed correctly through the system.
@@ -1548,7 +1512,7 @@ public class FFmpegMediaPlayer
     private native final int native_invoke(Parcel request, Parcel reply);
 
 
-    /*
+    /**
      * @param update_only If true fetch only the set of metadata that have
      *                    changed since the last invocation of getMetadata.
      *                    The set is built using the unfiltered
@@ -1561,339 +1525,63 @@ public class FFmpegMediaPlayer
      *                   metadata. Valid only if the call was successful.
      * @return The status code.
      */
-    private native final boolean native_getMetadata(boolean update_only,
-                                                    boolean apply_filter,
-                                                    Parcel reply);
+    private native final HashMap<String, String> native_getMetadata();//boolean update_only,
+                                                    //boolean apply_filter,
+                                                    //Parcel reply);
 
-    /*
+    /**
      * @param request Parcel with the 2 serialized lists of allowed
      *                metadata types followed by the one to be
      *                dropped. Each list starts with an integer
      *                indicating the number of metadata type elements.
      * @return The status code.
      */
-    private native final int native_setMetadataFilter(Parcel request);
+    private native final int native_setMetadataFilter(String [] allowed, String [] blocked);
 
     private static native final void native_init();
-    private static native void bind_variables(byte[] aAudioFrameBufferRef, int[] aAudioFrameBufferCountRef);
-    private native final void native_setup(Object mediaplayer_this);
+    private native final void native_setup(Object mediaplayer_this, byte [] buffer);
     private native final void native_finalize();
 
     /**
-     * Class for MediaPlayer to return each audio/video/subtitle track's metadata.
-     *
-     * @see android.media.MediaPlayer#getTrackInfo
+     * @param index The index of the text track to be turned on.
+     * @return true if the text track is enabled successfully.
+     * {@hide}
      */
-    static public class TrackInfo implements Parcelable {
-        /**
-         * Gets the track type.
-         * @return TrackType which indicates if the track is video, audio, timed text.
-         */
-        public int getTrackType() {
-            return mTrackType;
+    public boolean enableTimedTextTrackIndex(int index) {
+        if (index < 0) {
+            return false;
         }
-
-        /**
-         * Gets the language code of the track.
-         * @return a language code in either way of ISO-639-1 or ISO-639-2.
-         * When the language is unknown or could not be determined,
-         * ISO-639-2 language code, "und", is returned.
-         */
-        public String getLanguage() {
-            return mLanguage;
-        }
-
-        public static final int MEDIA_TRACK_TYPE_UNKNOWN = 0;
-        public static final int MEDIA_TRACK_TYPE_VIDEO = 1;
-        public static final int MEDIA_TRACK_TYPE_AUDIO = 2;
-        public static final int MEDIA_TRACK_TYPE_TIMEDTEXT = 3;
-
-        final int mTrackType;
-        final String mLanguage;
-
-        TrackInfo(Parcel in) {
-            mTrackType = in.readInt();
-            mLanguage = in.readString();
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public int describeContents() {
-            return 0;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void writeToParcel(Parcel dest, int flags) {
-            dest.writeInt(mTrackType);
-            dest.writeString(mLanguage);
-        }
-
-        /**
-         * Used to read a TrackInfo from a Parcel.
-         */
-        static final Parcelable.Creator<TrackInfo> CREATOR
-                = new Parcelable.Creator<TrackInfo>() {
-                    @Override
-                    public TrackInfo createFromParcel(Parcel in) {
-                        return new TrackInfo(in);
-                    }
-
-                    @Override
-                    public TrackInfo[] newArray(int size) {
-                        return new TrackInfo[size];
-                    }
-                };
-
-    };
-
-    /**
-     * Returns an array of track information.
-     *
-     * @return Array of track info. The total number of tracks is the array length.
-     * Must be called again if an external timed text source has been added after any of the
-     * addTimedTextSource methods are called.
-     * @throws IllegalStateException if it is called in an invalid state.
-     */
-    public TrackInfo[] getTrackInfo() throws IllegalStateException {
-        Parcel request = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
-        try {
-            request.writeInterfaceToken(IMEDIA_PLAYER);
-            request.writeInt(INVOKE_ID_GET_TRACK_INFO);
-            invoke(request, reply);
-            TrackInfo trackInfo[] = reply.createTypedArray(TrackInfo.CREATOR);
-            return trackInfo;
-        } finally {
-            request.recycle();
-            reply.recycle();
-        }
-    }
-
-    /* Do not change these values without updating their counterparts
-     * in include/media/stagefright/MediaDefs.h and media/libstagefright/MediaDefs.cpp!
-     */
-    /**
-     * MIME type for SubRip (SRT) container. Used in addTimedTextSource APIs.
-     */
-    public static final String MEDIA_MIMETYPE_TEXT_SUBRIP = "application/x-subrip";
-
-    /*
-     * A helper function to check if the mime type is supported by media framework.
-     */
-    private static boolean availableMimeTypeForExternalSource(String mimeType) {
-        if (mimeType == MEDIA_MIMETYPE_TEXT_SUBRIP) {
-            return true;
-        }
-        return false;
-    }
-
-    /* TODO: Limit the total number of external timed text source to a reasonable number.
-     */
-    /**
-     * Adds an external timed text source file.
-     *
-     * Currently supported format is SubRip with the file extension .srt, case insensitive.
-     * Note that a single external timed text source may contain multiple tracks in it.
-     * One can find the total number of available tracks using {@link #getTrackInfo()} to see what
-     * additional tracks become available after this method call.
-     *
-     * @param path The file path of external timed text source file.
-     * @param mimeType The mime type of the file. Must be one of the mime types listed above.
-     * @throws IOException if the file cannot be accessed or is corrupted.
-     * @throws IllegalArgumentException if the mimeType is not supported.
-     * @throws IllegalStateException if called in an invalid state.
-     */
-    public void addTimedTextSource(String path, String mimeType)
-            throws IOException, IllegalArgumentException, IllegalStateException {
-        if (!availableMimeTypeForExternalSource(mimeType)) {
-            final String msg = "Illegal mimeType for timed text source: " + mimeType;
-            throw new IllegalArgumentException(msg);
-        }
-
-        File file = new File(path);
-        if (file.exists()) {
-            FileInputStream is = new FileInputStream(file);
-            FileDescriptor fd = is.getFD();
-            addTimedTextSource(fd, mimeType);
-            is.close();
-        } else {
-            // We do not support the case where the path is not a file.
-            throw new IOException(path);
-        }
+        return setParameter(KEY_PARAMETER_TIMED_TEXT_TRACK_INDEX, index);
     }
 
     /**
-     * Adds an external timed text source file (Uri).
-     *
-     * Currently supported format is SubRip with the file extension .srt, case insensitive.
-     * Note that a single external timed text source may contain multiple tracks in it.
-     * One can find the total number of available tracks using {@link #getTrackInfo()} to see what
-     * additional tracks become available after this method call.
-     *
-     * @param context the Context to use when resolving the Uri
-     * @param uri the Content URI of the data you want to play
-     * @param mimeType The mime type of the file. Must be one of the mime types listed above.
-     * @throws IOException if the file cannot be accessed or is corrupted.
-     * @throws IllegalArgumentException if the mimeType is not supported.
-     * @throws IllegalStateException if called in an invalid state.
+     * Enables the first timed text track if any.
+     * @return true if the text track is enabled successfully
+     * {@hide}
      */
-    public void addTimedTextSource(Context context, Uri uri, String mimeType)
-            throws IOException, IllegalArgumentException, IllegalStateException {
-        String scheme = uri.getScheme();
-        if(scheme == null || scheme.equals("file")) {
-            addTimedTextSource(uri.getPath(), mimeType);
-            return;
-        }
-
-        AssetFileDescriptor fd = null;
-        try {
-            ContentResolver resolver = context.getContentResolver();
-            fd = resolver.openAssetFileDescriptor(uri, "r");
-            if (fd == null) {
-                return;
-            }
-            addTimedTextSource(fd.getFileDescriptor(), mimeType);
-            return;
-        } catch (SecurityException ex) {
-        } catch (IOException ex) {
-        } finally {
-            if (fd != null) {
-                fd.close();
-            }
-        }
+    public boolean enableTimedText() {
+        return enableTimedTextTrackIndex(0);
     }
 
     /**
-     * Adds an external timed text source file (FileDescriptor).
-     *
-     * It is the caller's responsibility to close the file descriptor.
-     * It is safe to do so as soon as this call returns.
-     *
-     * Currently supported format is SubRip. Note that a single external timed text source may
-     * contain multiple tracks in it. One can find the total number of available tracks
-     * using {@link #getTrackInfo()} to see what additional tracks become available
-     * after this method call.
-     *
-     * @param fd the FileDescriptor for the file you want to play
-     * @param mimeType The mime type of the file. Must be one of the mime types listed above.
-     * @throws IllegalArgumentException if the mimeType is not supported.
-     * @throws IllegalStateException if called in an invalid state.
+     * Disables timed text display.
+     * @return true if the text track is disabled successfully.
+     * {@hide}
      */
-    public void addTimedTextSource(FileDescriptor fd, String mimeType)
-            throws IllegalArgumentException, IllegalStateException {
-        // intentionally less than LONG_MAX
-        addTimedTextSource(fd, 0, 0x7ffffffffffffffL, mimeType);
+    public boolean disableTimedText() {
+        return setParameter(KEY_PARAMETER_TIMED_TEXT_TRACK_INDEX, -1);
     }
 
     /**
-     * Adds an external timed text file (FileDescriptor).
-     *
-     * It is the caller's responsibility to close the file descriptor.
-     * It is safe to do so as soon as this call returns.
-     *
-     * Currently supported format is SubRip. Note that a single external timed text source may
-     * contain multiple tracks in it. One can find the total number of available tracks
-     * using {@link #getTrackInfo()} to see what additional tracks become available
-     * after this method call.
-     *
-     * @param fd the FileDescriptor for the file you want to play
-     * @param offset the offset into the file where the data to be played starts, in bytes
-     * @param length the length in bytes of the data to be played
-     * @param mimeType The mime type of the file. Must be one of the mime types listed above.
-     * @throws IllegalArgumentException if the mimeType is not supported.
-     * @throws IllegalStateException if called in an invalid state.
+     * @param reply Parcel with audio/video duration info for battery
+                    tracking usage
+     * @return The status code.
+     * {@hide}
      */
-    public void addTimedTextSource(FileDescriptor fd, long offset, long length, String mimeType)
-            throws IllegalArgumentException, IllegalStateException {
-        if (!availableMimeTypeForExternalSource(mimeType)) {
-            throw new IllegalArgumentException("Illegal mimeType for timed text source: " + mimeType);
-        }
+    public native static int native_pullBatteryData(Parcel reply);
 
-        Parcel request = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
-        try {
-            request.writeInterfaceToken(IMEDIA_PLAYER);
-            request.writeInt(INVOKE_ID_ADD_EXTERNAL_SOURCE_FD);
-            request.writeFileDescriptor(fd);
-            request.writeLong(offset);
-            request.writeLong(length);
-            request.writeString(mimeType);
-            invoke(request, reply);
-        } finally {
-            request.recycle();
-            reply.recycle();
-        }
-    }
-
-    /**
-     * Selects a track.
-     * <p>
-     * If a MediaPlayer is in invalid state, it throws an IllegalStateException exception.
-     * If a MediaPlayer is in <em>Started</em> state, the selected track is presented immediately.
-     * If a MediaPlayer is not in Started state, it just marks the track to be played.
-     * </p>
-     * <p>
-     * In any valid state, if it is called multiple times on the same type of track (ie. Video,
-     * Audio, Timed Text), the most recent one will be chosen.
-     * </p>
-     * <p>
-     * The first audio and video tracks are selected by default if available, even though
-     * this method is not called. However, no timed text track will be selected until
-     * this function is called.
-     * </p>
-     * <p>
-     * Currently, only timed text tracks or audio tracks can be selected via this method.
-     * In addition, the support for selecting an audio track at runtime is pretty limited
-     * in that an audio track can only be selected in the <em>Prepared</em> state.
-     * </p>
-     * @param index the index of the track to be selected. The valid range of the index
-     * is 0..total number of track - 1. The total number of tracks as well as the type of
-     * each individual track can be found by calling {@link #getTrackInfo()} method.
-     * @throws IllegalStateException if called in an invalid state.
-     *
-     * @see android.media.MediaPlayer#getTrackInfo
-     */
-    public void selectTrack(int index) throws IllegalStateException {
-        selectOrDeselectTrack(index, true /* select */);
-    }
-
-    /**
-     * Deselect a track.
-     * <p>
-     * Currently, the track must be a timed text track and no audio or video tracks can be
-     * deselected. If the timed text track identified by index has not been
-     * selected before, it throws an exception.
-     * </p>
-     * @param index the index of the track to be deselected. The valid range of the index
-     * is 0..total number of tracks - 1. The total number of tracks as well as the type of
-     * each individual track can be found by calling {@link #getTrackInfo()} method.
-     * @throws IllegalStateException if called in an invalid state.
-     *
-     * @see android.media.MediaPlayer#getTrackInfo
-     */
-    public void deselectTrack(int index) throws IllegalStateException {
-        selectOrDeselectTrack(index, false /* select */);
-    }
-
-    private void selectOrDeselectTrack(int index, boolean select)
-            throws IllegalStateException {
-        Parcel request = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
-        try {
-            request.writeInterfaceToken(IMEDIA_PLAYER);
-            request.writeInt(select? INVOKE_ID_SELECT_TRACK: INVOKE_ID_DESELECT_TRACK);
-            request.writeInt(index);
-            invoke(request, reply);
-        } finally {
-            request.recycle();
-            reply.recycle();
-        }
-    }
+    @Override
+    protected void finalize() { native_finalize(); }
 
     /* Do not change these values without updating their counterparts
      * in include/media/mediaplayer.h!
@@ -1919,11 +1607,10 @@ public class FFmpegMediaPlayer
 
         @Override
         public void handleMessage(Message msg) {
-        	// TODO add this back
-            /*if (mMediaPlayer.mNativeContext == 0) {
+            if (mMediaPlayer.mNativeContext == 0) {
                 Log.w(TAG, "mediaplayer went away with unhandled events");
                 return;
-            }*/
+            }
             switch(msg.what) {
             case MEDIA_PREPARED:
                 if (mOnPreparedListener != null)
@@ -1952,6 +1639,8 @@ public class FFmpegMediaPlayer
               return;
 
             case MEDIA_ERROR:
+                // For PV specific error values (msg.arg2) look in
+                // opencore/pvmi/pvmf/include/pvmf_return_codes.h
                 Log.e(TAG, "Error (" + msg.arg1 + "," + msg.arg2 + ")");
                 boolean error_was_handled = false;
                 if (mOnErrorListener != null) {
@@ -1973,19 +1662,16 @@ public class FFmpegMediaPlayer
                 // No real default action so far.
                 return;
             case MEDIA_TIMED_TEXT:
-            	// TODO: add this code back
-                /*if (mOnTimedTextListener == null)
-                    return;
-                if (msg.obj == null) {
-                    mOnTimedTextListener.onTimedText(mMediaPlayer, null);
-                } else {
-                    if (msg.obj instanceof Parcel) {
-                        Parcel parcel = (Parcel)msg.obj;
-                        TimedText text = new TimedText(parcel);
-                        parcel.recycle();
-                        mOnTimedTextListener.onTimedText(mMediaPlayer, text);
+                if (mOnTimedTextListener != null) {
+                    if (msg.obj == null) {
+                        mOnTimedTextListener.onTimedText(mMediaPlayer, null);
+                    } else {
+                        if (msg.obj instanceof byte[]) {
+                            TimedText text = new TimedText((byte[])(msg.obj));
+                            mOnTimedTextListener.onTimedText(mMediaPlayer, text);
+                        }
                     }
-                }*/
+                }
                 return;
 
             case MEDIA_NOP: // interface test message - ignore
@@ -1997,8 +1683,8 @@ public class FFmpegMediaPlayer
             }
         }
     }
-    
-    /*
+
+    /**
      * Called from native code when an interesting event happens.  This method
      * just uses the EventHandler system to post the event back to the main app thread.
      * We use a weak reference to the original MediaPlayer object so that the native
@@ -2008,23 +1694,17 @@ public class FFmpegMediaPlayer
     private static void postEventFromNative(Object mediaplayer_ref,
                                             int what, int arg1, int arg2, Object obj)
     {
-        // TODO: Add back in weak reference code
-        /*FFmpegPlayer mp = (FFmpegPlayer)((WeakReference)mediaplayer_ref).get();
+        FFmpegMediaPlayer mp = (FFmpegMediaPlayer)((WeakReference)mediaplayer_ref).get();
         if (mp == null) {
             return;
-        }*/
-
-        if (what == MEDIA_INFO && arg1 == MEDIA_INFO_STARTED_AS_NEXT) {
-            // this acquires the wakelock if needed, and sets the client side state
-            // TODO: is this needed?
-            //mp.start();
         }
-        if (mEventHandler != null) {
-            Message m = mEventHandler.obtainMessage(what, arg1, arg2, obj);
-            mEventHandler.sendMessage(m);
+
+        if (mp.mEventHandler != null) {
+            Message m = mp.mEventHandler.obtainMessage(what, arg1, arg2, obj);
+            mp.mEventHandler.sendMessage(m);
         }
     }
-    
+
     /**
      * Interface definition for a callback to be invoked when the media
      * source is ready for playback.
@@ -2051,7 +1731,7 @@ public class FFmpegMediaPlayer
     }
 
     private OnPreparedListener mOnPreparedListener;
-    
+
     /**
      * Interface definition for a callback to be invoked when playback of
      * a media source has completed.
@@ -2078,7 +1758,7 @@ public class FFmpegMediaPlayer
     }
 
     private OnCompletionListener mOnCompletionListener;
-    
+
     /**
      * Interface definition of a callback to be invoked indicating buffering
      * status of a media resource being streamed over the network.
@@ -2149,9 +1829,6 @@ public class FFmpegMediaPlayer
         /**
          * Called to indicate the video size
          *
-         * The video size (width and height) could be 0 if there was no video,
-         * no display surface was set, or the value was not determined yet.
-         *
          * @param mp        the MediaPlayer associated with this callback
          * @param width     the width of the video
          * @param height    the height of the video
@@ -2175,6 +1852,7 @@ public class FFmpegMediaPlayer
     /**
      * Interface definition of a callback to be invoked when a
      * timed text is available for display.
+     * {@hide}
      */
     public interface OnTimedTextListener
     {
@@ -2184,9 +1862,9 @@ public class FFmpegMediaPlayer
          * @param mp             the MediaPlayer associated with this callback
          * @param text           the timed text sample which contains the text
          *                       needed to be displayed and the display format.
+         * {@hide}
          */
-    	// TODO: add this code back
-        //public void onTimedText(MediaPlayer mp, TimedText text);
+        public void onTimedText(FFmpegMediaPlayer mp, TimedText text);
     }
 
     /**
@@ -2194,6 +1872,7 @@ public class FFmpegMediaPlayer
      * for display.
      *
      * @param listener the callback that will be run
+     * {@hide}
      */
     public void setOnTimedTextListener(OnTimedTextListener listener)
     {
@@ -2224,16 +1903,6 @@ public class FFmpegMediaPlayer
      */
     public static final int MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK = 200;
 
-    /** File or network related operation errors. */
-    public static final int MEDIA_ERROR_IO = -1004;
-    /** Bitstream is not conforming to the related coding standard or file spec. */
-    public static final int MEDIA_ERROR_MALFORMED = -1007;
-    /** Bitstream is conforming to the related coding standard or file spec, but
-     * the media framework does not support the feature. */
-    public static final int MEDIA_ERROR_UNSUPPORTED = -1010;
-    /** Some operation takes too long to complete, usually more than 3-5 seconds. */
-    public static final int MEDIA_ERROR_TIMED_OUT = -110;
-
     /**
      * Interface definition of a callback to be invoked when there
      * has been an error during an asynchronous operation (other errors
@@ -2251,13 +1920,7 @@ public class FFmpegMediaPlayer
          * <li>{@link #MEDIA_ERROR_SERVER_DIED}
          * </ul>
          * @param extra an extra code, specific to the error. Typically
-         * implementation dependent.
-         * <ul>
-         * <li>{@link #MEDIA_ERROR_IO}
-         * <li>{@link #MEDIA_ERROR_MALFORMED}
-         * <li>{@link #MEDIA_ERROR_UNSUPPORTED}
-         * <li>{@link #MEDIA_ERROR_TIMED_OUT}
-         * </ul>
+         * implementation dependant.
          * @return True if the method handled the error, false if it didn't.
          * Returning false, or not having an OnErrorListener at all, will
          * cause the OnCompletionListener to be called.
@@ -2286,18 +1949,6 @@ public class FFmpegMediaPlayer
      * @see android.media.MediaPlayer.OnInfoListener
      */
     public static final int MEDIA_INFO_UNKNOWN = 1;
-
-    /** The player was started because it was used as the next player for another
-     * player, which just completed playback.
-     * @see android.media.MediaPlayer.OnInfoListener
-     * @hide
-     */
-    public static final int MEDIA_INFO_STARTED_AS_NEXT = 2;
-
-    /** The player just pushed the very first video frame for rendering.
-     * @see android.media.MediaPlayer.OnInfoListener
-     */
-    public static final int MEDIA_INFO_VIDEO_RENDERING_START = 3;
 
     /** The video is too complex for the decoder: it can't decode frames fast
      *  enough. Possibly only the audio plays fine at this stage.
@@ -2333,13 +1984,6 @@ public class FFmpegMediaPlayer
      */
     public static final int MEDIA_INFO_METADATA_UPDATE = 802;
 
-    /** Failed to handle timed text track properly.
-     * @see android.media.MediaPlayer.OnInfoListener
-     *
-     * {@hide}
-     */
-    public static final int MEDIA_INFO_TIMED_TEXT_ERROR = 900;
-
     /**
      * Interface definition of a callback to be invoked to communicate some
      * info and/or warning about the media or its playback.
@@ -2354,7 +1998,6 @@ public class FFmpegMediaPlayer
          * <ul>
          * <li>{@link #MEDIA_INFO_UNKNOWN}
          * <li>{@link #MEDIA_INFO_VIDEO_TRACK_LAGGING}
-         * <li>{@link #MEDIA_INFO_VIDEO_RENDERING_START}
          * <li>{@link #MEDIA_INFO_BUFFERING_START}
          * <li>{@link #MEDIA_INFO_BUFFERING_END}
          * <li>{@link #MEDIA_INFO_BAD_INTERLEAVING}
@@ -2362,7 +2005,7 @@ public class FFmpegMediaPlayer
          * <li>{@link #MEDIA_INFO_METADATA_UPDATE}
          * </ul>
          * @param extra an extra code, specific to the info. Typically
-         * implementation dependent.
+         * implementation dependant.
          * @return True if the method handled the info, false if it didn't.
          * Returning false, or not having an OnErrorListener at all, will
          * cause the info to be discarded.
@@ -2381,53 +2024,175 @@ public class FFmpegMediaPlayer
     }
 
     private OnInfoListener mOnInfoListener;
-    
-    /*
-     * Test whether a given video scaling mode is supported.
-     */
-    private boolean isVideoScalingModeSupported(int mode) {
-        return (mode == VIDEO_SCALING_MODE_SCALE_TO_FIT ||
-                mode == VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
+
+    private static Method sMethodRegisterAttachAuxEffect;
+    private static Constructor<AudioTrack> sConstructorRegisterSetAudioSessionId;
+    private static Method sMethodRegisterGetAudioSessionId;
+    private static Method sMethodRegisterSetAuxEffectSendLevel;
+	
+    private static void initializeStaticCompatMethods() {
+        try {
+        	sMethodRegisterAttachAuxEffect = AudioTrack.class.getMethod(
+                    "attachAuxEffect", int.class);
+        	sConstructorRegisterSetAudioSessionId = AudioTrack.class.getConstructor(
+        			int.class, int.class, int.class, int.class, int.class, int.class, int.class);
+        	sMethodRegisterGetAudioSessionId = AudioTrack.class.getMethod(
+                    "getAudioSessionId");
+        	sMethodRegisterSetAuxEffectSendLevel = AudioTrack.class.getMethod(
+                    "setAuxEffectSendLevel", float.class);
+        } catch (NoSuchMethodException e) {
+        	e.printStackTrace();
+            // Silently fail when running on an OS before API level 9.
+        }
     }
     
-    private static void nativeWriteCallback() {
-    	if (mAudioBuffer != null) {
-    		for (int i = 0; i < mAudioBuffer.size(); i++) {
-	        	mAudioTrack.write(mAudioBuffer.get(i), 0, mAudioBuffer.get(i).length);
-	        }
-	        	
-	        mAudioBuffer = null;
-	        mBytesWritten = 0;
-	    }
-			
-		//we can now access audio and do some other housekeeping
-		//outside of the synchronisation block
-		int len = mAudioFrameBufferDataLength[0];
-		assert(len > 0);
-		assert(len < AVCODEC_MAX_AUDIO_FRAME_SIZE);
-		mAudioTrack.write(mAudioFrameBuffer, 0, len);
-    }
-    
-    private static int fillBuffer(int dispatch) {
-		if (dispatch == 1 && mAudioTrack != null) {
-			if (mAudioBuffer == null) {
-				mAudioBuffer = new ArrayList<byte []>();
-			}
-        
-			int len = mAudioFrameBufferDataLength[0];
-			ByteBuffer bb = ByteBuffer.wrap(mAudioFrameBuffer, 0, len);
-			byte[] b = new byte[bb.remaining()];
-		    bb.get(b, 0, b.length);
-			mAudioBuffer.add(mAudioBuffer.size(), b);
-        	mBytesWritten = mBytesWritten + len;
-		
-        	if (mBytesWritten >= mMinBufferSize) {
-        		return 0;
-        	} else {
-        		return 1;
-        	}
+    private int attachAuxEffectCompat(int effectId) {
+    	int ret = -3;
+    	
+		if (sMethodRegisterAttachAuxEffect == null || mAudioTrack == null) {
+			return ret;
 		}
+
+        try {
+        	ret = (Integer) sMethodRegisterAttachAuxEffect.invoke(mAudioTrack, effectId);
+        } catch (InvocationTargetException e) {
+            // Unpack original exception when possible
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else if (cause instanceof Error) {
+                throw (Error) cause;
+            } else {
+                // Unexpected checked exception; wrap and re-throw
+                throw new RuntimeException(e);
+            }
+        } catch (IllegalAccessException e) {
+            Log.e(TAG, "IllegalAccessException invoking attachAuxEffect.");
+            e.printStackTrace();
+        }
+        
+        return ret;
+    }
+    
+    private AudioTrack setAudioSessionIdCompat(int streamType, int sampleRateInHz, int channelConfig, int audioFormat, int bufferSizeInBytes, int mode, int sessionId) {
+		if (sConstructorRegisterSetAudioSessionId == null) {
+            return new AudioTrack(streamType, sampleRateInHz, channelConfig,
+            		audioFormat, bufferSizeInBytes, mode);
+		}
+
+        try {
+        	return sConstructorRegisterSetAudioSessionId.newInstance(streamType, sampleRateInHz, channelConfig, audioFormat, bufferSizeInBytes, mode, sessionId);
+        } catch (InvocationTargetException e) {
+            // Unpack original exception when possible
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else if (cause instanceof Error) {
+                throw (Error) cause;
+            } else {
+                // Unexpected checked exception; wrap and re-throw
+                throw new RuntimeException(e);
+            }
+        } catch (IllegalAccessException e) {
+            Log.e(TAG, "IllegalAccessException while instantiating AudioTrack.");
+            e.printStackTrace();
+		} catch (InstantiationException e) {
+			Log.e(TAG, "InstantiationException while instantiating AudioTrack.");
+			e.printStackTrace();
+		}
+        
+        return new AudioTrack(streamType, sampleRateInHz, channelConfig,
+        		audioFormat, bufferSizeInBytes, mode);
+    }
+    
+	private int getAudioSessionIdCompat(AudioTrack audioTrack) {
+        int audioSessionId = 0;
 		
-		return 1;
+		if (sMethodRegisterGetAudioSessionId == null) {
+            return audioSessionId;
+		}
+
+        try {
+        	audioSessionId = (Integer) sMethodRegisterGetAudioSessionId.invoke(audioTrack);
+        } catch (InvocationTargetException e) {
+            // Unpack original exception when possible
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else if (cause instanceof Error) {
+                throw (Error) cause;
+            } else {
+                // Unexpected checked exception; wrap and re-throw
+                throw new RuntimeException(e);
+            }
+        } catch (IllegalAccessException e) {
+            Log.e(TAG, "IllegalAccessException invoking getAudioSessionId.");
+            e.printStackTrace();
+        }
+        
+        return audioSessionId;
+    }
+    
+    private int setAuxEffectSendLevelCompat(float level) {
+		int ret = -3;
+    	
+    	if (sMethodRegisterSetAuxEffectSendLevel == null || mAudioTrack == null) {
+            return ret;
+		}
+
+        try {
+        	ret = (Integer) sMethodRegisterSetAuxEffectSendLevel.invoke(mAudioTrack, level);
+        } catch (InvocationTargetException e) {
+            // Unpack original exception when possible
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else if (cause instanceof Error) {
+                throw (Error) cause;
+            } else {
+                // Unexpected checked exception; wrap and re-throw
+                throw new RuntimeException(e);
+            }
+        } catch (IllegalAccessException e) {
+            Log.e(TAG, "IllegalAccessException invoking setAuxEffectSendLevel.");
+            e.printStackTrace();
+        }
+        
+        return ret;
+    }
+	
+    private int initAudioTrack(int streamType, int sampleRateInHz, int channelConfig, int sessionId) {
+        channelConfig = (channelConfig == 1) ? AudioFormat.CHANNEL_OUT_MONO :
+        AudioFormat.CHANNEL_OUT_STEREO;
+        
+        int minBufferSize = AudioTrack.getMinBufferSize(sampleRateInHz, channelConfig, AudioFormat.ENCODING_PCM_16BIT) * 4;
+        
+        Log.i(TAG, "Minimum buffer size set to: " + minBufferSize);
+        
+        if (sessionId != 0) {
+        	setAudioSessionIdCompat(streamType, sampleRateInHz, channelConfig,
+        			AudioFormat.ENCODING_PCM_16BIT, minBufferSize, AudioTrack.MODE_STREAM, sessionId);
+        } else {
+        	mAudioTrack = new AudioTrack(streamType, sampleRateInHz, channelConfig,
+        			AudioFormat.ENCODING_PCM_16BIT, minBufferSize, AudioTrack.MODE_STREAM);
+        }
+        
+        return minBufferSize;
+    }
+    
+    private void writeAudio(int frame_size_ptr) {
+    	if (mBuffer != null && mBuffer.length > 0) {
+    		mAudioTrack.write(mBuffer, 0, frame_size_ptr);
+    	}
+    }
+    
+    private int _setVolume(float leftVolume, float rightVolume) {
+		int ret = -3;
+    	
+    	if (mAudioTrack != null) {
+    		ret = mAudioTrack.setStereoVolume(leftVolume, rightVolume);
+    	}
+    	
+    	return ret;
     }
 }
