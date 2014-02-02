@@ -247,6 +247,9 @@ int decode_frame_from_packet(State *state, AVPacket *aPacket, int *frame_size_pt
     		data_size = av_samples_get_buffer_size(NULL, state->audio_st->codec->channels,
     	    		decoded_frame->nb_samples,
     	    		state->audio_st->codec->sample_fmt, 1);
+    	} else {
+    		*frame_size_ptr = 0;
+    	    return 0;
     	}
     	
         if (decoded_frame->format != AV_SAMPLE_FMT_S16) {

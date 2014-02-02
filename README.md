@@ -29,6 +29,13 @@ Supported formats (audio only):
 Additional support for:
 * ICY Metadata (SHOUTcast metadata)
 
+Using FMP in your application
+------------
+
+Extract and copy the following JAR file and prebuilt native libraries into your projects "libs" folder:
+
+https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-library/prebuilt-libs.tar.gz.
+
 Demo Application
 ------------
 TBA
