@@ -74,7 +74,7 @@ public:
     ~MediaPlayer();
 
             void            disconnect();
-            status_t        setDataSource(const char *url);
+            status_t        setDataSource(const char *url, const char *headers);
             status_t        setDataSource(int fd, int64_t offset, int64_t length);
             status_t        setMetadataFilter(char *allow[], char *block[]);
             status_t        getMetadata(const char *key, char **value);

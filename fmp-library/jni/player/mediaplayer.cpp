@@ -160,7 +160,7 @@ status_t MediaPlayer::setDataSource(State *player)
     return err;
 }
 
-status_t MediaPlayer::setDataSource(const char *url)
+status_t MediaPlayer::setDataSource(const char *url, const char *headers)
 {
 	__android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "setDataSource(%s)", url);
     status_t err = BAD_VALUE;
@@ -174,7 +174,7 @@ status_t MediaPlayer::setDataSource(const char *url)
     	    ::setNotifyListener(&state, this, notifyListener);
     	    ::setInitAudioTrackListener(&state, this, initAudioTrackListener);
     	    ::setWriteAudioListener(&state, this, writeAudioListener);
-    	    err = ::setDataSource(&state, url);
+    	    err = ::setDataSource(&state, url, headers);
     	    if (err == NO_ERROR) {
     	    	err = setDataSource(state);
     	    }

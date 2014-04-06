@@ -74,6 +74,7 @@ typedef struct State {
 	int read_pause_return;
 	double audio_clock;
 	char filename[1024];
+	char headers[2048];
 	
 	void (*notify_callback) (void*, int, int, int, int);
 	int (*init_audio_track_callback) (void*, int, int, int);
@@ -89,7 +90,7 @@ void disconnect(State **ps);
 int setNotifyListener(State **ps,  void* clazz, void (*listener) (void*, int, int, int, int));
 int setInitAudioTrackListener(State **ps,  void* clazz, int (*listener) (void*, int, int, int));
 int setWriteAudioListener(State **ps,  void* clazz, void (*listener) (void*, int16_t *, int, int));
-int setDataSource(State **ps, const char *url);
+int setDataSource(State **ps, const char *url, const char *headers);
 int suspend();
 int resume();
 int setMetadataFilter(State **ps, char *allow[], char *block[]);

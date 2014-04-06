@@ -39,6 +39,7 @@ import android.media.AudioTrack;
 
 import java.io.File;
 import java.io.FileDescriptor;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -893,9 +894,18 @@ public class FFmpegMediaPlayer
      *
      * @param path the path of the file, or the http/rtsp URL of the stream you want to play
      * @throws IllegalStateException if it is called in an invalid state
+     *
+     * <p>When <code>path</code> refers to a local file, the file may actually be opened by a
+     * process other than the calling application.  This implies that the pathname
+     * should be an absolute path (as any other process runs with unspecified current working
+     * directory), and that the pathname should reference a world-readable file.
+     * As an alternative, the application could first open the file for reading,
+     * and then use the file descriptor form {@link #setDataSource(FileDescriptor)}.
      */
-    public native void setDataSource(String path)
-            throws IOException, IllegalArgumentException, SecurityException, IllegalStateException;
+    public void setDataSource(String path)
+            throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {
+        setDataSource(path, null, null);
+    }
 
     /**
      * Sets the data source (file-path or http/rtsp URL) to use.
@@ -922,7 +932,26 @@ public class FFmpegMediaPlayer
                 ++i;
             }
         }
-        _setDataSource(path, keys, values);
+        setDataSource(path, keys, values);
+    }
+
+    private void setDataSource(String path, String[] keys, String[] values)
+            throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {
+
+        final Uri uri = Uri.parse(path);
+        if ("file".equals(uri.getScheme())) {
+            path = uri.getPath();
+        }
+
+        final File file = new File(path);
+        if (file.exists()) {
+            FileInputStream is = new FileInputStream(file);
+            FileDescriptor fd = is.getFD();
+            setDataSource(fd);
+            is.close();
+        } else {
+            _setDataSource(path, keys, values);
+        }
     }
 
     private native void _setDataSource(

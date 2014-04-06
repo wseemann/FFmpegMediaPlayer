@@ -343,8 +343,9 @@ static void process_media_player_call(JNIEnv *env, jobject thiz, int opStatus, c
 }
 
 static void
-wseemann_media_FFmpegMediaPlayer_setDataSource(
-        JNIEnv *env, jobject thiz, jstring path) {
+wseemann_media_FFmpegMediaPlayer_setDataSourceAndHeaders(
+        JNIEnv *env, jobject thiz, jstring path,
+        jobjectArray keys, jobjectArray values) {
 
     MediaPlayer* mp = getMediaPlayer(env, thiz);
     if (mp == NULL ) {
@@ -361,10 +362,54 @@ wseemann_media_FFmpegMediaPlayer_setDataSource(
     if (tmp == NULL) {  // Out of memory
         return;
     }
+    
+    // Workaround for FFmpeg ticket #998
+    // "must convert mms://... streams to mmsh://... for FFmpeg to work"
+    char *restrict_to = strstr(tmp, "mms://");
+    if (restrict_to) {
+    	strncpy(restrict_to, "mmsh://", 6);
+    	puts(tmp);
+    }
+
+    char *headers = NULL;
+
+    if (keys && values != NULL) {
+    	int keysCount = env->GetArrayLength(keys);
+    	int valuesCount = env->GetArrayLength(values);
+
+    	if (keysCount != valuesCount) {
+    		__android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "keys and values arrays have different length");
+    		jniThrowException(env, "java/lang/IllegalArgumentException", NULL);
+    		return;
+    	}
+
+    	int i = 0;
+    	const char *rawString = NULL;
+    	char hdrs[2048];
+    	
+    	strcpy(hdrs, "");
+
+    	for (i = 0; i < keysCount; i++) {
+    		jstring key = (jstring) env->GetObjectArrayElement(keys, i);
+    		rawString = env->GetStringUTFChars(key, NULL);
+    		strcat(hdrs, rawString);
+    		strcat(hdrs, ": ");
+    		env->ReleaseStringUTFChars(key, rawString);
+
+    		jstring value = (jstring) env->GetObjectArrayElement(values, i);
+    		rawString = env->GetStringUTFChars(value, NULL);
+    		strcat(hdrs, rawString);
+    		strcat(hdrs, "\r\n");
+    		env->ReleaseStringUTFChars(value, rawString);
+    	}
+
+    	headers = &hdrs[0];
+    }
+    
     __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "setDataSource: path %s", tmp);
 
     status_t opStatus =
-        mp->setDataSource(tmp);
+        mp->setDataSource(tmp, headers);
 
     process_media_player_call(
             env, thiz, opStatus, "java/io/IOException",
@@ -907,7 +952,12 @@ static void wseemann_media_FFmpegMediaPlayer_attachAuxEffect(JNIEnv *env,  jobje
 // ----------------------------------------------------------------------------
 
 static JNINativeMethod gMethods[] = {
-    {"setDataSource",       "(Ljava/lang/String;)V",            (void *)wseemann_media_FFmpegMediaPlayer_setDataSource},
+	{
+	    "_setDataSource",
+	    "(Ljava/lang/String;[Ljava/lang/String;[Ljava/lang/String;)V",
+	    (void *)wseemann_media_FFmpegMediaPlayer_setDataSourceAndHeaders
+	},
+
     {"_setVideoSurface",    "(Landroid/view/Surface;)V",        (void *)wseemann_media_FFmpegMediaPlayer_setVideoSurface},
     {"prepare",             "()V",                              (void *)wseemann_media_FFmpegMediaPlayer_prepare},
     {"prepareAsync",        "()V",                              (void *)wseemann_media_FFmpegMediaPlayer_prepareAsync},
