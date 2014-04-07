@@ -340,6 +340,17 @@ int decode_frame_from_packet(State *state, AVPacket *aPacket, int *frame_size_pt
             samples = malloc(dst_bufsize);
     		memcpy(samples, dst_data[0], dst_bufsize);
     		data_size = dst_bufsize;
+
+    		if (src_data) {
+    			av_freep(&src_data[0]);
+    		}
+    		av_freep(&src_data);
+
+    		if (dst_data) {
+    			av_freep(&dst_data[0]);
+    		}
+    		av_freep(&dst_data);
+
     		swr_free(&swr_ctx);
     	} else {
     		/* if a frame has been decoded, output it */
