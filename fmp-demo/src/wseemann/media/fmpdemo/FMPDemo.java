@@ -18,32 +18,34 @@
 
 package wseemann.media.fmpdemo;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 
-import wseemann.media.FFmpegMediaPlayer;
+import wseemann.media.fmpdemo.MusicUtils.ServiceToken;
 import wseemann.media.fmpdemo.R;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.os.RemoteException;
 import android.support.v4.app.FragmentActivity;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 
-public class FMPDemo extends FragmentActivity {
+public class FMPDemo extends FragmentActivity implements ServiceConnection {
 
-	private FFmpegMediaPlayer mPlayer;
+    private IMediaPlaybackService mService = null;
+	private ServiceToken mToken;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity);
-		
-		mPlayer = new FFmpegMediaPlayer();
+		setContentView(R.layout.activity_fmpdemo);
 		
 		final EditText uriText = (EditText) findViewById(R.id.uri);
     	// Uncomment for debugging
@@ -91,55 +93,32 @@ public class FMPDemo extends FragmentActivity {
 				
 				String uriString = uriText.getText().toString();
 				
-				mPlayer.reset();
-				mPlayer.setOnPreparedListener(new FFmpegMediaPlayer.OnPreparedListener() {
-
-				    @Override
-				    public void onPrepared(FFmpegMediaPlayer mp) {
-				        mp.start();
-				    }
-				});
-				
-				mPlayer.setOnCompletionListener(new FFmpegMediaPlayer.OnCompletionListener() {
-					
-					@Override
-					public void onCompletion(FFmpegMediaPlayer mp) {
-						
-					}
-				});
-				
-				mPlayer.setOnErrorListener(new FFmpegMediaPlayer.OnErrorListener() {
-
-				    @Override
-				    public boolean onError(FFmpegMediaPlayer mp, int what, int extra) {
-				    	
-				        return true;
-				    }
-				   
-				});
-				
 				try {
-					mPlayer.setDataSource(uriString);
-					mPlayer.prepareAsync();
-				} catch (IllegalArgumentException e) {
-					e.printStackTrace();
-				} catch (SecurityException e) {
-					e.printStackTrace();
-				} catch (IllegalStateException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
+					mService.openFile(uriString);
+				} catch (RemoteException e) {
 					e.printStackTrace();
 				}
 			}
 		});
     	
+        mToken = MusicUtils.bindToService(this, this);
 	}
 	
 	@Override
-	public void onStop() {
-		super.onStop();
+	public void onDestroy() {
+		MusicUtils.unbindFromService(mToken);
+		mService = null;
 		
-		mPlayer.reset();
-		mPlayer.release();
+		super.onDestroy();
+	}
+
+	@Override
+	public void onServiceConnected(ComponentName name, IBinder service) {
+		mService = IMediaPlaybackService.Stub.asInterface(service);
+	}
+
+	@Override
+	public void onServiceDisconnected(ComponentName name) {
+		finish();
 	}
 }

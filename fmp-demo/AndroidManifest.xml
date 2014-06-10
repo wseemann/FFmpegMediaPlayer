@@ -4,11 +4,13 @@
     android:versionCode="2"
     android:versionName="1.0" >
 
+    <uses-permission android:name="android.permission.BROADCAST_STICKY" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+   	<uses-permission android:name="android.permission.WAKE_LOCK" />
     
     <uses-sdk
-        android:minSdkVersion="7"
+        android:minSdkVersion="8"
         android:targetSdkVersion="19" />
 
     <application
@@ -46,6 +48,20 @@
         		<data android:mimeType="video/*" />
     		</intent-filter>
         </activity>
+        
+        <activity
+            android:name="wseemann.media.fmpdemo.MediaPlayerActivity"
+            android:launchMode="singleTop"
+            android:exported="false" >
+            <intent-filter>
+            	<action android:name="wseemann.media.fmpdemo.PLAYBACK_VIEWER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        
+        <service
+            android:name="wseemann.media.fmpdemo.MediaPlaybackService"
+        	android:exported="false" />
     </application>
 
 </manifest>

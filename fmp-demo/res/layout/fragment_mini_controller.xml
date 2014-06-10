@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nowplaying"
+    android:layout_width="fill_parent"
+    android:layout_height="59.0dip"
+    android:gravity="bottom"
+    android:orientation="vertical" >
+
+    <LinearLayout
+    	android:layout_width="fill_parent"
+    	android:layout_height="59.0dip"
+    	android:gravity="bottom"
+    	android:orientation="horizontal"
+        android:background="@drawable/borderless_button" >
+    
+    	<ImageView
+        	android:id="@+id/coverart"
+        	android:layout_width="56.0dip"
+        	android:layout_height="56.0dip"
+        	android:scaleType="centerCrop" />
+
+    	<LinearLayout
+        	android:layout_width="0.0dip"
+        	android:layout_height="fill_parent"
+        	android:layout_weight="1.0"
+        	android:layout_marginLeft="12.0dip"
+        	android:layout_marginRight="15.0dip"
+        	android:gravity="left|center"
+        	android:orientation="vertical" >
+
+        	<TextView
+            	android:id="@+id/title"
+            	android:layout_width="wrap_content"
+            	android:layout_height="wrap_content"
+            	android:textSize="16.0dip"
+            	android:singleLine="true"
+            	android:ellipsize="marquee" />
+
+        	<TextView
+            	android:id="@+id/artist"
+            	android:layout_width="wrap_content"
+        		android:layout_height="wrap_content"
+        		android:paddingTop="2.0dip"
+            	android:textSize="12.0dip"
+        		android:singleLine="true"
+        		android:ellipsize="marquee" />
+        	
+    	</LinearLayout>
+
+    	<ImageButton
+        	android:id="@+id/play_pause_button"
+        	android:layout_width="56.0dip"
+        	android:layout_height="56.0dip"
+        	android:gravity="center"
+        	android:visibility="gone"
+        	android:background="@drawable/borderless_button" />
+
+	</LinearLayout>
+    	
+</LinearLayout>
