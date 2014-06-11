@@ -53,7 +53,7 @@ public final class CoverView extends View {
 		int width = getWidth();
 		int height = getHeight();
 		
-		canvas.drawColor(android.R.color.transparent);
+		//canvas.drawColor(android.R.color.transparent);
 		
 		if (mBitmap != null) {
 			int xOffset = (width - mBitmap.getWidth()) / 2;
@@ -85,6 +85,8 @@ public final class CoverView extends View {
 		
 		Context context = getContext();
 
+		b = MusicUtils.getDefaultArtwork(context, R.drawable.albumart_mp_unknown, scale, scale);
+		
 		mBitmap = b;
 		postInvalidate();
 		

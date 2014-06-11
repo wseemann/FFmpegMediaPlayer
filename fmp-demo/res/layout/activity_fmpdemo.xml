@@ -36,7 +36,7 @@
         android:layout_weight="1" />
     
     <fragment
-        android:id="@+id/nowplaying"
+        android:id="@+id/miniController1"
         android:name="wseemann.media.fmpdemo.MiniControllerFragment"
        	android:layout_width="fill_parent"
        	android:layout_height="wrap_content"

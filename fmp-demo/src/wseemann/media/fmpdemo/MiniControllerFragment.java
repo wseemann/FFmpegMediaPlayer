@@ -60,10 +60,10 @@ public class MiniControllerFragment extends Fragment implements ServiceConnectio
 	public View onCreateView(LayoutInflater inflater, ViewGroup container,
 			Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_mini_controller, container, false);
-		mNowPlayingView = view.findViewById(R.id.nowplaying);
-		mTitle = (TextView) view.findViewById(R.id.title);
-		mArtist = (TextView) view.findViewById(R.id.artist);
-		mPauseButton = (ImageView) view.findViewById(R.id.play_pause_button);
+		mNowPlayingView = view.findViewById(R.id.bigContainer);
+		mTitle = (TextView) view.findViewById(R.id.titleView);
+		mArtist = (TextView) view.findViewById(R.id.subTitleView);
+		mPauseButton = (ImageView) view.findViewById(R.id.playPauseView);
 		
 		return view;
 	}

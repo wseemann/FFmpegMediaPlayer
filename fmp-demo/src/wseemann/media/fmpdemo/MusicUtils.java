@@ -26,6 +26,8 @@ import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.RemoteException;
 import android.provider.MediaStore;
@@ -363,6 +365,45 @@ public class MusicUtils {
         } catch (RemoteException ex) {
         }
     }
+    
+    public static Bitmap getDefaultArtwork(Context context, int id, int w, int h) {
+    	BitmapFactory.Options sBitmapOptionsCache = new BitmapFactory.Options();
+    	Bitmap b = null;
+        int sampleSize = 1;
+        
+        sBitmapOptionsCache.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        
+        // Compute the closest power-of-two scale factor 
+        // and pass that to sBitmapOptionsCache.inSampleSize, which will
+        // result in faster decoding and better quality
+        sBitmapOptionsCache.inJustDecodeBounds = true;
+                
+        BitmapFactory.decodeResource(context.getResources(), id, sBitmapOptionsCache);
+        int nextWidth = sBitmapOptionsCache.outWidth >> 1;
+        int nextHeight = sBitmapOptionsCache.outHeight >> 1;
+        while (nextWidth>w && nextHeight>h) {
+        	sampleSize <<= 1;
+        	nextWidth >>= 1;
+        	nextHeight >>= 1;
+        }
+
+        sBitmapOptionsCache.inSampleSize = sampleSize;
+        sBitmapOptionsCache.inJustDecodeBounds = false;
+        b = BitmapFactory.decodeResource(context.getResources(), id, sBitmapOptionsCache);
+            
+        if (b != null) {
+        	// finally rescale to exactly the size we need
+            if (sBitmapOptionsCache.outWidth != w || sBitmapOptionsCache.outHeight != h) {
+            	Bitmap tmp = Bitmap.createScaledBitmap(b, w, h, true);
+            	// Bitmap.createScaledBitmap() can return the same bitmap
+                if (tmp != b) b.recycle();
+                	b = tmp;
+            }
+        }
+        
+        return b;
+    }
+
     
     static int getCardId(Context context) {
         ContentResolver res = context.getContentResolver();

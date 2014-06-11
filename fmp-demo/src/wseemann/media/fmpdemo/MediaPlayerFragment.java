@@ -146,7 +146,6 @@ public class MediaPlayerFragment extends Fragment implements CoverViewListener {
     
     private static class IdWrapper {
         public long id;
-        @SuppressWarnings("unused")
 		IdWrapper(long id) {
             this.id = id;
         }
@@ -190,7 +189,7 @@ public class MediaPlayerFragment extends Fragment implements CoverViewListener {
             }
             
             mArtistAndAlbumName.setText(artistAndAlbumName);
-            mAlbumArtHandler.removeMessages(GET_ALBUM_ART);
+            mAlbumArtHandler.obtainMessage(GET_ALBUM_ART, new IdWrapper(10)).sendToTarget();
         } catch (RemoteException ex) {
         }
     }
@@ -265,5 +264,6 @@ public class MediaPlayerFragment extends Fragment implements CoverViewListener {
         }
         
         mAlbumArtHandler.removeMessages(GET_ALBUM_ART);
+		mAlbumArtHandler.obtainMessage(GET_ALBUM_ART, new IdWrapper(10)).sendToTarget();
 	}
 }
