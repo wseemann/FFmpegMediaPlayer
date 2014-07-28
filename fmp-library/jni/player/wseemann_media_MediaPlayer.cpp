@@ -419,6 +419,38 @@ wseemann_media_FFmpegMediaPlayer_setDataSourceAndHeaders(
     tmp = NULL;
 }
 
+static int jniGetFDFromFileDescriptor(JNIEnv * env, jobject fileDescriptor) {
+    jint fd = -1;
+    jclass fdClass = env->FindClass("java/io/FileDescriptor");
+    
+    if (fdClass != NULL) {
+        jfieldID fdClassDescriptorFieldID = env->GetFieldID(fdClass, "descriptor", "I");
+        if (fdClassDescriptorFieldID != NULL && fileDescriptor != NULL) {
+            fd = env->GetIntField(fileDescriptor, fdClassDescriptorFieldID);
+        }
+    }
+    
+    return fd;
+}
+
+static void
+wseemann_media_FFmpegMediaPlayer_setDataSourceFD(JNIEnv *env, jobject thiz, jobject fileDescriptor, jlong offset, jlong length)
+{
+    MediaPlayer* mp = getMediaPlayer(env, thiz);
+    if (mp == NULL ) {
+        jniThrowException(env, "java/lang/IllegalStateException", NULL);
+        return;
+    }
+
+    if (fileDescriptor == NULL) {
+        jniThrowException(env, "java/lang/IllegalArgumentException", NULL);
+        return;
+    }
+    int fd = jniGetFDFromFileDescriptor(env, fileDescriptor);
+    __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "setDataSourceFD: fd %d", fd);
+    process_media_player_call( env, thiz, mp->setDataSource(fd, offset, length), "java/io/IOException", "setDataSourceFD failed." );
+}
+
 static void
 decVideoSurfaceRef(JNIEnv *env, jobject thiz)
 {
@@ -958,6 +990,7 @@ static JNINativeMethod gMethods[] = {
 	    (void *)wseemann_media_FFmpegMediaPlayer_setDataSourceAndHeaders
 	},
 
+	{"_setDataSource",       "(Ljava/io/FileDescriptor;JJ)V",    (void *)wseemann_media_FFmpegMediaPlayer_setDataSourceFD},
     {"_setVideoSurface",    "(Landroid/view/Surface;)V",        (void *)wseemann_media_FFmpegMediaPlayer_setVideoSurface},
     {"prepare",             "()V",                              (void *)wseemann_media_FFmpegMediaPlayer_prepare},
     {"prepareAsync",        "()V",                              (void *)wseemann_media_FFmpegMediaPlayer_prepareAsync},

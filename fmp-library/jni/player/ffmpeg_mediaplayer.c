@@ -24,6 +24,8 @@
 #include <ffmpeg_mediaplayer.h>
 #include <android/log.h>
 
+#include <stdio.h>
+
 const char *DURATION = "duration";
 const char *AUDIO_CODEC = "audio_codec";
 const char *VIDEO_CODEC = "video_codec";
@@ -66,6 +68,10 @@ void clear_l(State **ps)
 	    }
 	}
 	
+	if (state && state->fd != -1) {
+		close(state->fd);
+	}
+	
 	state->pFormatCtx = NULL;
 	state->audio_stream = -1;
 	state->video_stream = -1;
@@ -77,6 +83,8 @@ void clear_l(State **ps)
 	state->last_paused = -1;
 	state->filename[0] = '\0';
 	state->headers[0] = '\0';
+	state->fd = -1;
+	state->offset = 0;
 }
 
 void disconnect(State **ps)
@@ -88,6 +96,10 @@ void disconnect(State **ps)
 			avformat_close_input(&state->pFormatCtx);
 	    }
 	           
+		if (state && state->fd != -1) {
+			close(state->fd);
+		}
+		
 	    av_freep(&state);
 	    *ps = NULL;
 	}
@@ -117,7 +129,7 @@ int setWriteAudioListener(State **ps, void* clazz, void (*listener) (void*, int1
     return SUCCESS;
 }
 
-int setDataSource(State **ps, const char *url, const char *headers)
+int setDataSourceURI(State **ps, const char *url, const char *headers)
 {
     printf("setDataSource\n");
 
@@ -142,6 +154,25 @@ int setDataSource(State **ps, const char *url, const char *headers)
     }
     
     return SUCCESS;
+}
+
+int setDataSourceFD(State **ps, int fd, int64_t offset, int64_t length) {
+	printf("setDataSource\n");
+	
+	State *state = *ps;
+	
+    int myfd = dup(fd);
+
+    char str[20];
+    sprintf(str, "pipe:%d", myfd);
+    strncpy(state->filename, str, sizeof(state->filename));
+    
+    state->fd = myfd;
+    state->offset = offset;
+    
+	*ps = state;
+
+	return SUCCESS;
 }
 
 int setMetadataFilter(State **ps, char *allow[], char *block[])
@@ -539,6 +570,11 @@ int player_prepare(State **ps, int from_thread)
     
     if (state->headers) {
     	av_dict_set(&options, "headers", state->headers, 0);
+    }
+    
+    if (state->offset > 0) {
+        state->pFormatCtx = avformat_alloc_context();
+        state->pFormatCtx->skip_initial_bytes = state->offset;
     }
     
     if (avformat_open_input(&state->pFormatCtx, state->filename, NULL, &options) != 0) {

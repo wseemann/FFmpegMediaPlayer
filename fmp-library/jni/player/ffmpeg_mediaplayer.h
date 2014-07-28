@@ -83,6 +83,9 @@ typedef struct State {
 	
 	char *allow[0];
 	char *block[0];
+	
+	int             fd;
+	int64_t         offset;
 } State;
 
 void init(State **ps);
@@ -90,7 +93,8 @@ void disconnect(State **ps);
 int setNotifyListener(State **ps,  void* clazz, void (*listener) (void*, int, int, int, int));
 int setInitAudioTrackListener(State **ps,  void* clazz, int (*listener) (void*, int, int, int));
 int setWriteAudioListener(State **ps,  void* clazz, void (*listener) (void*, int16_t *, int, int));
-int setDataSource(State **ps, const char *url, const char *headers);
+int setDataSourceURI(State **ps, const char *url, const char *headers);
+int setDataSourceFD(State **ps, int fd, int64_t offset, int64_t length);
 int suspend();
 int resume();
 int setMetadataFilter(State **ps, char *allow[], char *block[]);

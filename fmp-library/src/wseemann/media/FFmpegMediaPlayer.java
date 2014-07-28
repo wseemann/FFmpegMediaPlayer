@@ -981,8 +981,15 @@ public class FFmpegMediaPlayer
      * @param length the length in bytes of the data to be played
      * @throws IllegalStateException if it is called in an invalid state
      */
-    public native void setDataSource(FileDescriptor fd, long offset, long length)
+    public void setDataSource(FileDescriptor fd, long offset, long length)
+            throws IOException, IllegalArgumentException, IllegalStateException {
+        //disableProxyListener();
+        _setDataSource(fd, offset, length);
+    }
+
+    private native void _setDataSource(FileDescriptor fd, long offset, long length)
             throws IOException, IllegalArgumentException, IllegalStateException;
+
 
     /**
      * Prepares the player for playback, synchronously.
