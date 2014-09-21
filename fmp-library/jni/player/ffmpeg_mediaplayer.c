@@ -579,15 +579,17 @@ int player_prepare(State **ps, int from_thread)
     
     if (avformat_open_input(&state->pFormatCtx, state->filename, NULL, &options) != 0) {
 	    printf("Input file could not be opened\n");
+		state->notify_callback(state->clazz, MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, 0, from_thread);
 		*ps = NULL;
-    	return FAILURE;
+    	return MEDIA_ERROR;
     }
 
 	if (avformat_find_stream_info(state->pFormatCtx, NULL) < 0) {
 	    printf("Stream information could not be retrieved\n");
 	    avformat_close_input(&state->pFormatCtx);
+		state->notify_callback(state->clazz, MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, 0, from_thread);
 		*ps = NULL;
-    	return FAILURE;
+    	return MEDIA_ERROR;
 	}
 
 	char duration[30] = "0";
@@ -617,8 +619,9 @@ int player_prepare(State **ps, int from_thread)
 
 	if (state->video_stream < 0 && state->audio_stream < 0) {
 	    avformat_close_input(&state->pFormatCtx);
+		state->notify_callback(state->clazz, MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, 0, from_thread);
 		*ps = NULL;
-		return FAILURE;
+		return MEDIA_ERROR;
 	}
 
 	state->pFormatCtx->interrupt_callback.callback = decode_interrupt_cb;
@@ -665,8 +668,7 @@ int prepareAsync_l(State **ps)
 int prepare(State **ps)
 {
     printf("prepare\n");
-    player_prepare(ps, NOT_FROM_THREAD);
-    return SUCCESS;
+    return player_prepare(ps, NOT_FROM_THREAD);
 }
 
 void player_prepare_thread(void *data)

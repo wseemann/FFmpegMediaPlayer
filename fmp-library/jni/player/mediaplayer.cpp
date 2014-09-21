@@ -249,35 +249,33 @@ int MediaPlayer::prepareAsync_l()
 // code.
 status_t MediaPlayer::prepare()
 {
-    __android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "prepare");
-     /*Mutex::Autolock _l(mLock);
-     mLockThreadId = getThreadId();
-     if (mPrepareSync) {
-     mLockThreadId = 0;
-     return -EALREADY;
-     }
-     mPrepareSync = true;
-     int ret = prepareAsync_l();
-     if (ret != NO_ERROR) {
-     mLockThreadId = 0;
-     return ret;
-     }
-     
-     if (mPrepareSync) {
-     mSignal.wait(mLock);  // wait for prepare done
-     mPrepareSync = false;
-     }
-     LOGV("prepare complete - status=%d", mPrepareStatus);
-     mLockThreadId = 0;
-     return mPrepareStatus;*/
-    return ::prepare(&state);
+	__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "prepare");
+	//Mutex::Autolock _l(mLock);
+	//mLockThreadId = getThreadId();
+	if (mPrepareSync) {
+	//mLockThreadId = 0;
+	return -EALREADY;
+	}
+	mPrepareSync = true;
+	status_t ret = prepareAsync_l();
+	if (ret != NO_ERROR) {
+	//mLockThreadId = 0;
+	return ret;
+	}
+	if (mPrepareSync) {
+	//mSignal.wait(mLock); // wait for prepare done
+	mPrepareSync = false;
+	}
+	__android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "prepare complete - status=%d", mPrepareStatus);
+	//mLockThreadId = 0;
+	return mPrepareStatus;
 }
 
 status_t MediaPlayer::prepareAsync()
 {
     __android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "prepareAsync");
     //Mutex::Autolock _l(mLock);
-    return ::prepareAsync(&state);
+	return prepareAsync_l();
 }
 
 status_t MediaPlayer::start()
