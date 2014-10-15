@@ -88,7 +88,7 @@ typedef struct State {
 	int64_t         offset;
 } State;
 
-void init(State **ps);
+void clear_l(State **ps);
 void disconnect(State **ps);
 int setNotifyListener(State **ps,  void* clazz, void (*listener) (void*, int, int, int, int));
 int setInitAudioTrackListener(State **ps,  void* clazz, int (*listener) (void*, int, int, int));

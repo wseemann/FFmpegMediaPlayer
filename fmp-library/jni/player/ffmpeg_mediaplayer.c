@@ -43,21 +43,6 @@ int decode_interrupt_cb(void *opaque) {
     return (state && state->abort_request);
 }
 
-void init(State **ps)
-{
-    State *state = *ps;
-
-    if (!state) {
-        state = av_mallocz(sizeof(State));
-    }
-
-    if (!state) {
-        //return FAILURE;
-    }
-
-    *ps = state;
-}
-
 void clear_l(State **ps)
 {
 	State *state = *ps;
@@ -72,6 +57,10 @@ void clear_l(State **ps)
 		close(state->fd);
 	}
 	
+    //if (!state) {
+        state = av_mallocz(sizeof(State));
+    //}
+    
 	state->pFormatCtx = NULL;
 	state->audio_stream = -1;
 	state->video_stream = -1;
@@ -85,6 +74,8 @@ void clear_l(State **ps)
 	state->headers[0] = '\0';
 	state->fd = -1;
 	state->offset = 0;
+    
+    *ps = state;
 }
 
 void disconnect(State **ps)
@@ -726,11 +717,7 @@ int isPlaying(State **ps)
 {
 	State *state = *ps;
 	
-	if (state->paused) {
-		return 0;
-	} else {
-		return 1;
-	}
+    return state->paused;
 }
 
 int getVideoWidth(int *w)

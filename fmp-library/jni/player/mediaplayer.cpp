@@ -38,7 +38,7 @@ MediaPlayer::MediaPlayer()
     __android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "constructor");
 	
     state = NULL;
-    //::init(&state);
+    ::clear_l(&state);
     
     mListener = NULL;
     mCookie = NULL;
@@ -87,6 +87,8 @@ void MediaPlayer::clear_l()
     mCurrentPosition = -1;
     mSeekPosition = -1;
     mVideoWidth = mVideoHeight = 0;
+    
+    ::clear_l(&state);
 }
 
 static void
@@ -168,8 +170,7 @@ status_t MediaPlayer::setDataSource(const char *url, const char *headers)
         //if (service != 0) {
             //sp<IMediaPlayer> player(
             //        service->create(getpid(), this, url, headers, mAudioSessionId));
-    	    State *state = NULL;
-    	    ::init(&state);
+            clear_l();
     	    ::setNotifyListener(&state, this, notifyListener);
     	    ::setInitAudioTrackListener(&state, this, initAudioTrackListener);
     	    ::setWriteAudioListener(&state, this, writeAudioListener);
@@ -189,8 +190,7 @@ status_t MediaPlayer::setDataSource(int fd, int64_t offset, int64_t length)
     //const sp<IMediaPlayerService>& service(getMediaPlayerService());
     //if (state != 0) {
         //sp<IMediaPlayer> player(service->create(getpid(), this, fd, offset, length, mAudioSessionId));
-    	State *state = NULL;
-    	::init(&state);
+        clear_l();
     	::setNotifyListener(&state, this, notifyListener);
     	::setInitAudioTrackListener(&state, this, initAudioTrackListener);
     	::setWriteAudioListener(&state, this, writeAudioListener);
