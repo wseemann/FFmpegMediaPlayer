@@ -21,7 +21,7 @@ Key Features:
 * Support for additional formats and protocols not provided by Android's MediaPlayer class
 
 Supported protocols:
-* file, http, https, mms and mmsh
+* file, http, https, mms, mmsh and rtmp
 
 Supported formats (audio only):
 * aac, acc+, avi, flac, mp2, mp3, mp4, ogg, 3gp and more!
