@@ -1,0 +1,42 @@
+/*
+ * FFmpegMediaPlayer: A unified interface for playing audio files and streams.
+ *
+ * Copyright 2014 William Seemann
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef PLAYER_H_
+#define PLAYER_H_
+
+void createEngine();
+void createBufferQueueAudioPlayer();
+int createUriAudioPlayer();
+void setPlayingUriAudioPlayer(int isPlaying);
+void setLoopingUriAudioPlayer(int isLooping);
+void setChannelMuteUriAudioPlayer(int chan, int mute);
+void setChannelSoloUriAudioPlayer(int chan, int solo);
+int getNumChannelsUriAudioPlayer();
+void setVolumeUriAudioPlayer(int millibel);
+void setMuteUriAudioPlayer(int mute);
+void enableStereoPositionUriAudioPlayer(int enable);
+void setStereoPositionUriAudioPlayer(int permille);
+int enableReverb(int enabled);
+int selectClip(int which, int count);
+int createAudioPlayer();
+void setPlayingAssetAudioPlayer(int isPlaying);
+int createAudioRecorder();
+void startRecording();
+void shutdown();
+
+#endif /*PLAYER_H_*/
