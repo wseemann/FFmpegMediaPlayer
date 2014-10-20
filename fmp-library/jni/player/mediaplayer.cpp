@@ -87,8 +87,6 @@ void MediaPlayer::clear_l()
     mCurrentPosition = -1;
     mSeekPosition = -1;
     mVideoWidth = mVideoHeight = 0;
-    
-    ::clear_l(&state);
 }
 
 static void
@@ -170,6 +168,8 @@ status_t MediaPlayer::setDataSource(const char *url, const char *headers)
         //if (service != 0) {
             //sp<IMediaPlayer> player(
             //        service->create(getpid(), this, url, headers, mAudioSessionId));
+    		State* state = NULL;
+    		::clear_l(&state);
             clear_l();
     	    ::setNotifyListener(&state, this, notifyListener);
     	    ::setInitAudioTrackListener(&state, this, initAudioTrackListener);
@@ -190,6 +190,8 @@ status_t MediaPlayer::setDataSource(int fd, int64_t offset, int64_t length)
     //const sp<IMediaPlayerService>& service(getMediaPlayerService());
     //if (state != 0) {
         //sp<IMediaPlayer> player(service->create(getpid(), this, fd, offset, length, mAudioSessionId));
+    	State* state = NULL;
+    	::clear_l(&state);
         clear_l();
     	::setNotifyListener(&state, this, notifyListener);
     	::setInitAudioTrackListener(&state, this, initAudioTrackListener);
