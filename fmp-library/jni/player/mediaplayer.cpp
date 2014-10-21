@@ -38,7 +38,6 @@ MediaPlayer::MediaPlayer()
     __android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "constructor");
 	
     state = NULL;
-    ::clear_l(&state);
     
     mListener = NULL;
     mCookie = NULL;
@@ -713,7 +712,7 @@ int MediaPlayer::initAudioTrack(int sampleRateInHz, int channelConfig, int fromT
 
 void MediaPlayer::writeAudio(int16_t *samples, int frame_size_ptr, int fromThread)
 {
-	__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "MediaPlayer::writeAudio");
+	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "MediaPlayer::writeAudio");
     
     MediaPlayerListener* listener = mListener;
 
