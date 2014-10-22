@@ -74,6 +74,7 @@ void clear_l(State **ps)
 	state->headers[0] = '\0';
 	state->fd = -1;
 	state->offset = 0;
+	state->player_started = 0;
     
     *ps = state;
 }
@@ -685,6 +686,7 @@ int start(State **ps)
 	}
     
     state->paused = 0;
+    state->player_started = 1;
     
     pthread_mutex_unlock(lock);
     
@@ -716,8 +718,12 @@ int pause(State **ps)
 int isPlaying(State **ps)
 {
 	State *state = *ps;
-	
-    return state->paused;
+
+	if (!state->player_started) {
+		return 0;
+	} else {
+	    return !state->paused;
+	}
 }
 
 int getVideoWidth(int *w)

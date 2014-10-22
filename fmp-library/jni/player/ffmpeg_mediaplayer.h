@@ -86,6 +86,7 @@ typedef struct State {
 	
 	int             fd;
 	int64_t         offset;
+	int player_started;
 } State;
 
 void clear_l(State **ps);
