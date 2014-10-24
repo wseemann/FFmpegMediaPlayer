@@ -1029,6 +1029,8 @@ static int register_wseemann_media_FFmpegMediaPlayer(JNIEnv *env)
     jclass clazz = env->FindClass("wseemann/media/FFmpegMediaPlayer");
     jint ret = env->RegisterNatives(clazz, gMethods, numMethods);
     env->DeleteLocalRef(clazz);
+    
+    return ret;
 }
 
 jint JNI_OnLoad(JavaVM* vm, void* reserved)
