@@ -1284,11 +1284,6 @@ public class FFmpegMediaPlayer
      * same codec is supported on a device.
      */
     public void release() {
-        if (mAudioTrack != null) {
-        	mAudioTrack.release();
-        	mAudioTrack = null;
-        } 
-    	
         stayAwake(false);
         updateSurfaceScreenOn();
         mOnPreparedListener = null;
@@ -1300,6 +1295,11 @@ public class FFmpegMediaPlayer
         mOnVideoSizeChangedListener = null;
         mOnTimedTextListener = null;
         _release();
+        
+        if (mAudioTrack != null) {
+        	mAudioTrack.release();
+        	mAudioTrack = null;
+        } 
     }
 
     private native void _release();

@@ -65,14 +65,13 @@ MediaPlayer::~MediaPlayer()
 
 void MediaPlayer::disconnect()
 {
-	
 	__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "disconnect");
-    /*sp<IMediaPlayer> p;
+    State *p = NULL;
     {
-        Mutex::Autolock _l(mLock);
-        p = mPlayer;
-        mPlayer.clear();
-    }*/
+        //Mutex::Autolock _l(mLock);
+        p = state;
+        ::reset(&p);
+    }
 
     if (state != 0) {
         ::disconnect(&state);

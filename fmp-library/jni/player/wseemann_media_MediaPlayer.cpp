@@ -1027,8 +1027,17 @@ static int register_wseemann_media_FFmpegMediaPlayer(JNIEnv *env)
 {
     int numMethods = (sizeof(gMethods) / sizeof( (gMethods)[0]));
     jclass clazz = env->FindClass("wseemann/media/FFmpegMediaPlayer");
-    jint ret = env->RegisterNatives(clazz, gMethods, numMethods);
+    if (clazz == NULL) {
+    	__android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "Native registration unable to find class 'wseemann/media/FFmpegMediaPlayer'");
+    	return JNI_ERR;
+    }
+    if (env->RegisterNatives(clazz, gMethods, numMethods) < 0) {
+      	__android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "RegisterNatives failed for 'wseemann/media/FFmpegMediaPlayer'");
+        return JNI_ERR;
+    }
     env->DeleteLocalRef(clazz);
+    
+    return JNI_OK;
 }
 
 jint JNI_OnLoad(JavaVM* vm, void* reserved)
