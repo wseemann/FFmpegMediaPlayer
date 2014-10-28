@@ -38,7 +38,8 @@ https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-library/prebuilt-l
 
 Demo Application
 ------------
-TBA
+
+A sample application that makes use of FFmpegMediaPlayer can be downloaded at: https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-demo/FMPDemo.apk. Note: The sample application is compiled with support for ALL available formats. This results in a larger library and APK. FFmpeg can be recompiled with a subset of codecs enabled for those wanting a smaller size.
 
 Installation
 ------------
