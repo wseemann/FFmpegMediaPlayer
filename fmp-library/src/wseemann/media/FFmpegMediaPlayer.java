@@ -18,7 +18,6 @@
 
 package wseemann.media;
 
-import android.annotation.SuppressLint;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
@@ -547,7 +546,7 @@ public class FFmpegMediaPlayer
     
     private final static String TAG = "FFmpegMediaPlayer";
     
-    @SuppressLint("SdCardPath")
+    /*@SuppressLint("SdCardPath")
 	private static final String LIBRARY_PATH = "/data/data/";
 	
 	private static final String [] JNI_LIBRARIES = {
@@ -602,6 +601,23 @@ public class FFmpegMediaPlayer
     	
     	for (int i = 0; i < JNI_LIBRARIES.length; i++) {
     		System.load(path.toString() + JNI_LIBRARIES[i]);
+    	}
+    	
+        native_init();
+        initializeStaticCompatMethods();
+    }*/
+    
+	private static final String [] JNI_LIBRARIES = {
+		"avutil",
+		"avcodec",
+		"avformat",
+		"swresample",
+		"ffmpeg_mediaplayer_jni"		
+	};
+    
+    static {
+    	for (int i = 0; i < JNI_LIBRARIES.length; i++) {
+    		System.loadLibrary(JNI_LIBRARIES[i]);
     	}
     	
         native_init();
