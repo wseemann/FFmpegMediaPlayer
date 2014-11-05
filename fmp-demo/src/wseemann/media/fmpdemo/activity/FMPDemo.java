@@ -16,12 +16,14 @@
  * limitations under the License.
  */
 
-package wseemann.media.fmpdemo;
+package wseemann.media.fmpdemo.activity;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 
-import wseemann.media.fmpdemo.MusicUtils.ServiceToken;
+import wseemann.media.fmpdemo.service.IMediaPlaybackService;
+import wseemann.media.fmpdemo.service.MusicUtils;
+import wseemann.media.fmpdemo.service.MusicUtils.ServiceToken;
 import wseemann.media.fmpdemo.R;
 import android.content.ComponentName;
 import android.content.Context;
@@ -94,7 +96,13 @@ public class FMPDemo extends FragmentActivity implements ServiceConnection {
 				String uriString = uriText.getText().toString();
 				
 				try {
-					mService.openFile(uriString);
+					long id = MusicUtils.insert(FMPDemo.this, uriString);
+					
+					long [] list = new long[1];
+					list[0] = id;
+					
+					mService.open(list, 0);
+					//mService.openFile(uriString);
 				} catch (RemoteException e) {
 					e.printStackTrace();
 				}

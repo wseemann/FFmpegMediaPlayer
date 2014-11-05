@@ -16,8 +16,10 @@
  * limitations under the License.
  */
 
-package wseemann.media.fmpdemo;
+package wseemann.media.fmpdemo.receiver;
 
+import wseemann.media.fmpdemo.activity.FMPDemo;
+import wseemann.media.fmpdemo.service.MediaPlaybackService;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;

@@ -16,11 +16,13 @@
  * limitations under the License.
  */
 
-package wseemann.media.fmpdemo;
+package wseemann.media.fmpdemo.service;
 
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.ContentResolver;
+import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
@@ -40,6 +42,10 @@ import java.io.PrintWriter;
 import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Locale;
+
+import wseemann.media.fmpdemo.provider.Media;
+import wseemann.media.fmpdemo.service.IMediaPlaybackService;
+import wseemann.media.fmpdemo.R;
 
 public class MusicUtils {
 
@@ -271,6 +277,20 @@ public class MusicUtils {
         }
     }
 
+    public static long insert(Context context, String uri) {
+        ContentResolver resolver = context.getContentResolver();
+        if (resolver == null) {
+            return -1;
+        }
+    	
+    	ContentValues values = new ContentValues();
+        values.put(Media.MediaColumns.URI, uri);
+    		
+        long id = ContentUris.parseId(resolver.insert(Media.MediaColumns.CONTENT_URI, values));
+        
+        return id;
+    }
+    
     public static Cursor query(Context context, Uri uri, String[] projection,
             String selection, String[] selectionArgs, String sortOrder, int limit) {
         try {

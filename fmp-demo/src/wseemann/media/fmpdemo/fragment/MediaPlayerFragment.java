@@ -16,10 +16,15 @@
  * limitations under the License.
  */
 
-package wseemann.media.fmpdemo;
+package wseemann.media.fmpdemo.fragment;
 
-import wseemann.media.fmpdemo.CoverView.CoverViewListener;
-import wseemann.media.fmpdemo.MusicUtils.ServiceToken;
+import wseemann.media.fmpdemo.R;
+import wseemann.media.fmpdemo.service.IMediaPlaybackService;
+import wseemann.media.fmpdemo.service.MediaPlaybackService;
+import wseemann.media.fmpdemo.service.MusicUtils;
+import wseemann.media.fmpdemo.service.MusicUtils.ServiceToken;
+import wseemann.media.fmpdemo.view.CoverView;
+import wseemann.media.fmpdemo.view.CoverView.CoverViewListener;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;

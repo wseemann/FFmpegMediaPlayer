@@ -11,7 +11,7 @@
         android:background="@null"
         android:padding="10dip" >
 
-        <wseemann.media.fmpdemo.CoverView
+        <wseemann.media.fmpdemo.view.CoverView
             android:id="@+id/album_art"
             android:layout_width="fill_parent"
             android:layout_height="fill_parent" />

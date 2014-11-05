@@ -16,8 +16,11 @@
  * limitations under the License.
  */
 
-package wseemann.media.fmpdemo;
+package wseemann.media.fmpdemo.view;
 
+import wseemann.media.fmpdemo.R;
+import wseemann.media.fmpdemo.R.drawable;
+import wseemann.media.fmpdemo.service.MusicUtils;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;

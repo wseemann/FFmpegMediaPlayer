@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package wseemann.media.fmpdemo;
+package wseemann.media.fmpdemo.service;
 
 import android.graphics.Bitmap;
 

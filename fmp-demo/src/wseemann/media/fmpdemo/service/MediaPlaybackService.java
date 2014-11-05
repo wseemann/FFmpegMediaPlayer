@@ -16,15 +16,13 @@
  * limitations under the License.
  */
 
-package wseemann.media.fmpdemo;
+package wseemann.media.fmpdemo.service;
 
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.ContentResolver;
-import android.content.ContentUris;
-import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -46,7 +44,8 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.os.PowerManager.WakeLock;
-import android.provider.MediaStore;
+import android.provider.BaseColumns;
+import wseemann.media.fmpdemo.provider.Media;
 import android.util.Log;
 import android.widget.RemoteViews;
 import android.widget.Toast;
@@ -59,6 +58,9 @@ import java.util.Random;
 import java.util.Vector;
 
 import wseemann.media.FFmpegMediaPlayer;
+import wseemann.media.fmpdemo.service.IMediaPlaybackService;
+import wseemann.media.fmpdemo.R;
+import wseemann.media.fmpdemo.receiver.MediaButtonIntentReceiver;
 
 /**
  * Provides "background" audio playback capabilities, allowing the
@@ -125,20 +127,15 @@ public class MediaPlaybackService extends Service {
     private final Shuffler mRand = new Shuffler();
     private int mOpenFailedCounter = 0;
     String[] mCursorCols = new String[] {
-            "audio._id AS _id",             // index must match IDCOLIDX below
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.MIME_TYPE,
-            MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.ARTIST_ID,
-            MediaStore.Audio.Media.IS_PODCAST, // index must match PODCASTCOLIDX below
-            MediaStore.Audio.Media.BOOKMARK    // index must match BOOKMARKCOLIDX below
+            BaseColumns._ID,                // index must match IDCOLIDX below
+            Media.MediaColumns.ARTIST,
+            Media.MediaColumns.ALBUM,
+            Media.MediaColumns.TITLE,
+            Media.MediaColumns.URI
     };
     private final static int IDCOLIDX = 0;
-    private final static int PODCASTCOLIDX = 8;
-    private final static int BOOKMARKCOLIDX = 9;
+    //private final static int PODCASTCOLIDX = 8;
+    //private final static int BOOKMARKCOLIDX = 9;
     private BroadcastReceiver mUnmountReceiver = null;
     private WakeLock mWakeLock;
     private int mServiceStartId = -1;
@@ -518,13 +515,13 @@ public class MediaPlaybackService extends Service {
             // that fails, wait a while and try again. If that too fails,
             // assume there is a problem and don't restore the state.
             Cursor crsr = MusicUtils.query(this,
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        Media.MediaColumns.CONTENT_URI,
                         new String [] {"_id"}, "_id=" + mPlayList[mPlayPos] , null, null);
             if (crsr == null || crsr.getCount() == 0) {
                 // wait a bit and try again
                 SystemClock.sleep(3000);
                 crsr = getContentResolver().query(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                		Media.MediaColumns.CONTENT_URI,
                         mCursorCols, "_id=" + mPlayList[mPlayPos] , null, null);
             }
             if (crsr != null) {
@@ -995,7 +992,7 @@ public class MediaPlaybackService extends Service {
         String id = String.valueOf(lid);
 
         Cursor c = getContentResolver().query(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+        		Media.MediaColumns.CONTENT_URI,
                 mCursorCols, "_id=" + id , null, null);
         if (c != null) {
             c.moveToFirst();
@@ -1018,8 +1015,9 @@ public class MediaPlaybackService extends Service {
             mCursor = getCursorForId(mPlayList[mPlayPos]);
             while(true) {
                 if (mCursor != null && mCursor.getCount() != 0 &&
-                        open(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI + "/" +
-                                mCursor.getLong(IDCOLIDX))) {
+                        //open(Media.MediaColumns.CONTENT_URI + "/" +
+                        //        mCursor.getLong(IDCOLIDX))) {
+                        open(mCursor.getString(mCursor.getColumnIndex(Media.MediaColumns.URI)))) {
                     break;
                 }
                 // if we get here then opening the file failed. We can close the cursor now, because
@@ -1067,24 +1065,59 @@ public class MediaPlaybackService extends Service {
         }
     }
 
+    /**
+     * Opens the specified file and readies it for playback.
+     *
+     * @param path The full path of the file to be opened.
+     */
     public boolean open(String path) {
         synchronized (this) {
             if (path == null) {
                 return false;
             }
             
-            ensurePlayListCapacity(1);
-            mPlayListLen = 1;
-            mPlayList[0] = 1234;
-            mPlayPos = 0;
+            // if mCursor is null, try to associate path with a database cursor
+            /*if (mCursor == null) {
+
+                ContentResolver resolver = getContentResolver();
+                Uri uri;
+                String where;
+                String selectionArgs[];
+                if (path.startsWith("content://media/")) {
+                    uri = Uri.parse(path);
+                    where = null;
+                    selectionArgs = null;
+                } else {
+                   uri = MediaStore.Audio.Media.getContentUriForPath(path);
+                   where = MediaStore.Audio.Media.DATA + "=?";
+                   selectionArgs = new String[] { path };
+                }
+                
+                try {
+                    mCursor = resolver.query(uri, mCursorCols, where, selectionArgs, null);
+                    if  (mCursor != null) {
+                        if (mCursor.getCount() == 0) {
+                            mCursor.close();
+                            mCursor = null;
+                        } else {
+                            mCursor.moveToNext();
+                            ensurePlayListCapacity(1);
+                            mPlayListLen = 1;
+                            mPlayList[0] = mCursor.getLong(IDCOLIDX);
+                            mPlayPos = 0;
+                        }
+                    }
+                } catch (UnsupportedOperationException ex) {
+                }
+            }*/
             mFileToPlay = path;
             mPlayer.setDataSource(mFileToPlay);
-            /*if (mPlayer.isInitialized()) {
+            if (mPlayer.isInitialized()) {
                 mOpenFailedCounter = 0;
                 return true;
-            }*/
-            //stop(true);
-            return true;
+            }
+            stop(true);
+            return false;
         }
     }
     
@@ -1191,11 +1224,11 @@ public class MediaPlaybackService extends Service {
         } else {
             String artist = getArtistName();
             views.setTextViewText(R.id.trackname, getTrackName());
-            if (artist == null || artist.equals(MediaStore.UNKNOWN_STRING)) {
+            if (artist == null || artist.equals(Media.UNKNOWN_STRING)) {
                 artist = getString(R.string.unknown_artist_name);
             }
             String album = getAlbumName();
-            if (album == null || album.equals(MediaStore.UNKNOWN_STRING)) {
+            if (album == null || album.equals(Media.UNKNOWN_STRING)) {
                 album = getString(R.string.unknown_album_name);
             }
 
@@ -1450,11 +1483,12 @@ public class MediaPlaybackService extends Service {
                 }
                 
                 // write 'pos' to the bookmark field
-                ContentValues values = new ContentValues();
+                // TODO add back
+                /*ContentValues values = new ContentValues();
                 values.put(MediaStore.Audio.Media.BOOKMARK, pos);
                 Uri uri = ContentUris.withAppendedId(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mCursor.getLong(IDCOLIDX));
-                getContentResolver().update(uri, values, null, null);
+                		Media.MediaColumns.CONTENT_URI, mCursor.getLong(IDCOLIDX));
+                getContentResolver().update(uri, values, null, null);*/
             }
         } catch (SQLiteException ex) {
         }
@@ -1541,8 +1575,8 @@ public class MediaPlaybackService extends Service {
         ContentResolver res = getContentResolver();
         Cursor c = null;
         try {
-            c = res.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                    new String[] {MediaStore.Audio.Media._ID}, MediaStore.Audio.Media.IS_MUSIC + "=1",
+            c = res.query(Media.MediaColumns.CONTENT_URI,
+                    new String[] {Media.MediaColumns._ID}, null, //MediaStore.Audio.Media.IS_MUSIC + "=1",
                     null, null);
             if (c == null || c.getCount() == 0) {
                 return false;
@@ -1740,7 +1774,7 @@ public class MediaPlaybackService extends Service {
             if (mCursor == null) {
                 return null;
             }
-            return mCursor.getString(mCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST));
+            return mCursor.getString(mCursor.getColumnIndexOrThrow(Media.MediaColumns.ARTIST));
         }
     }
     
@@ -1749,7 +1783,7 @@ public class MediaPlaybackService extends Service {
             if (mCursor == null) {
                 return -1;
             }
-            return mCursor.getLong(mCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID));
+            return -1; //mCursor.getLong(mCursor.getColumnIndexOrThrow(Media.MediaColumns.ARTIST_ID));
         }
     }
 
@@ -1758,7 +1792,7 @@ public class MediaPlaybackService extends Service {
             if (mCursor == null) {
                 return null;
             }
-            return mCursor.getString(mCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM));
+            return mCursor.getString(mCursor.getColumnIndexOrThrow(Media.MediaColumns.ALBUM));
         }
     }
 
@@ -1767,7 +1801,7 @@ public class MediaPlaybackService extends Service {
             if (mCursor == null) {
                 return -1;
             }
-            return mCursor.getLong(mCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID));
+            return -1; //mCursor.getLong(mCursor.getColumnIndexOrThrow(Media.MediaColumns.ALBUM_ID));
         }
     }
 
@@ -1776,7 +1810,7 @@ public class MediaPlaybackService extends Service {
             if (mCursor == null) {
                 return null;
             }
-            return mCursor.getString(mCursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE));
+            return mCursor.getString(mCursor.getColumnIndexOrThrow(Media.MediaColumns.TITLE));
         }
     }
 
@@ -1785,7 +1819,7 @@ public class MediaPlaybackService extends Service {
             if (mCursor == null) {
                 return false;
             }
-            return (mCursor.getInt(PODCASTCOLIDX) > 0);
+            return false; //(mCursor.getInt(PODCASTCOLIDX) > 0);
         }
     }
     
@@ -1794,7 +1828,7 @@ public class MediaPlaybackService extends Service {
             if (mCursor == null) {
                 return 0;
             }
-            return mCursor.getLong(BOOKMARKCOLIDX);
+            return 0; //mCursor.getLong(BOOKMARKCOLIDX);
         }
     }
     

@@ -16,10 +16,14 @@
  * limitations under the License.
  */
 
-package wseemann.media.fmpdemo;
+package wseemann.media.fmpdemo.activity;
 
-import wseemann.media.fmpdemo.MediaPlayerFragment;
-import wseemann.media.fmpdemo.MusicUtils.ServiceToken;
+import wseemann.media.fmpdemo.R;
+import wseemann.media.fmpdemo.fragment.MediaPlayerFragment;
+import wseemann.media.fmpdemo.service.IMediaPlaybackService;
+import wseemann.media.fmpdemo.service.MediaPlaybackService;
+import wseemann.media.fmpdemo.service.MusicUtils;
+import wseemann.media.fmpdemo.service.MusicUtils.ServiceToken;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -44,6 +48,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentStatePagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.v4.view.ViewPager.OnPageChangeListener;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -525,31 +530,20 @@ public class MediaPlayerActivity extends FragmentActivity {
         }
     }
     
-    private void doStop() {
-    	try {
-    		if(mService != null) {
-    			mService.stop();
-    			refreshNow();
-    			setPauseButtonImage();
-    		}
-    	} catch (RemoteException ex) {
-    	}
-    }
-    
     private void toggleShuffle() {
-        /*if (mService == null) {
+        if (mService == null) {
             return;
         }
         try {
             int shuffle = mService.getShuffleMode();
             if (shuffle == MediaPlaybackService.SHUFFLE_NONE) {
-            	mService.setShuffleMode(MediaPlaybackService.SHUFFLE_ON);
+            	mService.setShuffleMode(MediaPlaybackService.SHUFFLE_NORMAL);
                 if (mService.getRepeatMode() == MediaPlaybackService.REPEAT_CURRENT) {
                 	mService.setRepeatMode(MediaPlaybackService.REPEAT_ALL);
                     setRepeatButtonImage();
                 }
                 showToast(R.string.shuffle_on_notif);
-            } else if (shuffle == MediaPlaybackService.SHUFFLE_ON) {
+            } else if (shuffle == MediaPlaybackService.SHUFFLE_NORMAL) {
             	mService.setShuffleMode(MediaPlaybackService.SHUFFLE_NONE);
                 showToast(R.string.shuffle_off_notif);
             } else {
@@ -557,11 +551,11 @@ public class MediaPlayerActivity extends FragmentActivity {
             }
             setShuffleButtonImage();
         } catch (RemoteException ex) {
-        }*/
+        }
     }
     
     private void cycleRepeat() {
-        /*if (mService == null) {
+        if (mService == null) {
             return;
         }
         try {
@@ -582,23 +576,7 @@ public class MediaPlayerActivity extends FragmentActivity {
             }
             setRepeatButtonImage();
         } catch (RemoteException ex) {
-        }*/
-    }
-    
-    private String makeTimeString(int pos) {
-    	String minuteText;
-    	
-	    if (pos == 1) {
-	    	minuteText = getResources().getString(R.string.minute);
-	    } else if (pos % 60 == 0 && pos > 60) {
-	    	minuteText = getResources().getString(R.string.hours, String.valueOf(pos / 60));
-	    } else if (pos % 60 == 0) {
-	    	minuteText = getResources().getString(R.string.hour);
-	    } else {
-	    	minuteText = getResources().getString(R.string.minutes, String.valueOf(pos));
-	    }
-    	
-    	return minuteText;
+        }
     }
     
     private void showToast(int resid) {
@@ -606,14 +584,6 @@ public class MediaPlayerActivity extends FragmentActivity {
             mToast = Toast.makeText(this, null, Toast.LENGTH_SHORT);
         }
         mToast.setText(resid);
-        mToast.show();
-    }
-    
-    private void showToast(String message) {
-        if (mToast == null) {
-            mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
-        }
-        mToast.setText(message);
         mToast.show();
     }
     
@@ -788,7 +758,6 @@ public class MediaPlayerActivity extends FragmentActivity {
     private TextView mCurrentTime;
     private TextView mTotalTime;
     private ProgressBar mProgress;
-    private SeekBar mVolume;
     private long mPosOverride = -1;
     private boolean mFromTouch = false;
     private long mDuration;

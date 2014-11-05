@@ -11,7 +11,7 @@
     
     <uses-sdk
         android:minSdkVersion="8"
-        android:targetSdkVersion="20" />
+        android:targetSdkVersion="21" />
 
     <application
         android:allowBackup="true"
@@ -19,7 +19,7 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
         <activity
-            android:name="wseemann.media.fmpdemo.FMPDemo"
+            android:name="wseemann.media.fmpdemo.activity.FMPDemo"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -50,7 +50,7 @@
         </activity>
         
         <activity
-            android:name="wseemann.media.fmpdemo.MediaPlayerActivity"
+            android:name="wseemann.media.fmpdemo.activity.MediaPlayerActivity"
             android:launchMode="singleTop"
             android:exported="false" >
             <intent-filter>
@@ -60,8 +60,13 @@
         </activity>
         
         <service
-            android:name="wseemann.media.fmpdemo.MediaPlaybackService"
+            android:name="wseemann.media.fmpdemo.service.MediaPlaybackService"
         	android:exported="false" />
+        
+        <provider
+            android:name="wseemann.media.fmpdemo.provider.MediaProvider"
+            android:authorities="wseemann.media.fmpdemo.provider.Media"
+            android:exported="false" />
     </application>
 
 </manifest>
