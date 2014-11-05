@@ -20,6 +20,7 @@
 #define MEDIAPLAYER_H
 
 #include <Errors.h>
+#include <pthread.h>
 
 extern "C" {
 	#include "libavcodec/avcodec.h"
@@ -115,8 +116,8 @@ private:
             status_t        setDataSource(State *state);
         
     //sp<IMediaPlayer>            mPlayer;
-    //Mutex                       mLock;
-    //Mutex                       mNotifyLock;
+    pthread_mutex_t*            mLock;
+    pthread_mutex_t*            mNotifyLock;
     //Condition                   mSignal;
     MediaPlayerListener*        mListener;
     void*                       mCookie;

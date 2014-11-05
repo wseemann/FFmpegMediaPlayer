@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <Errors.h>
+#include <pthread.h>
 #include <mediaplayer.h>
 
 extern "C" {
@@ -52,6 +53,7 @@ MediaPlayer::MediaPlayer()
     mLeftVolume = mRightVolume = 1.0;
     mVideoWidth = mVideoHeight = 0;
     //mLockThreadId = 0;
+    pthread_mutex_init(mLock, NULL);
     mAudioSessionId = 0;
     mSendLevel = 0;
 }
