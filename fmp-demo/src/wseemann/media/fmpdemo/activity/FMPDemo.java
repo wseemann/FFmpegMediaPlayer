@@ -96,13 +96,10 @@ public class FMPDemo extends FragmentActivity implements ServiceConnection {
 				String uriString = uriText.getText().toString();
 				
 				try {
-					long id = MusicUtils.insert(FMPDemo.this, uriString);
-					
 					long [] list = new long[1];
-					list[0] = id;
+					list[0] = MusicUtils.insert(FMPDemo.this, uriString);
 					
 					mService.open(list, 0);
-					//mService.openFile(uriString);
 				} catch (RemoteException e) {
 					e.printStackTrace();
 				}
