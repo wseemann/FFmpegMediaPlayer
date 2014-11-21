@@ -31,9 +31,10 @@
 
 #include <player.h>
 
+static const SLEnvironmentalReverbSettings reverbSettings =
+    SL_I3DL2_ENVIRONMENT_PRESET_STONECORRIDOR;
+
 typedef struct Player {
-    // pre-recorded sound clips, both are 8 kHz mono 16-bit signed little endian
-    
     // engine interfaces
     SLObjectItf engineObject;
     SLEngineItf engineEngine;
@@ -51,26 +52,26 @@ typedef struct Player {
     SLVolumeItf bqPlayerVolume;
     
     // aux effect on the output mix, used by the buffer queue player
-    SLEnvironmentalReverbSettings reverbSettings;
+    //SLEnvironmentalReverbSettings reverbSettings;
     
     // URI player interfaces
-    SLObjectItf uriPlayerObject;
-    SLPlayItf uriPlayerPlay;
-    SLSeekItf uriPlayerSeek;
-    SLMuteSoloItf uriPlayerMuteSolo;
-    SLVolumeItf uriPlayerVolume;
+    //SLObjectItf uriPlayerObject;
+    //SLPlayItf uriPlayerPlay;
+    //SLSeekItf uriPlayerSeek;
+    //SLMuteSoloItf uriPlayerMuteSolo;
+    //SLVolumeItf uriPlayerVolume;
     
     // file descriptor player interfaces
-    SLObjectItf fdPlayerObject;
-    SLPlayItf fdPlayerPlay;
-    SLSeekItf fdPlayerSeek;
-    SLMuteSoloItf fdPlayerMuteSolo;
-    SLVolumeItf fdPlayerVolume;
+    //SLObjectItf fdPlayerObject;
+    //SLPlayItf fdPlayerPlay;
+    //SLSeekItf fdPlayerSeek;
+    //SLMuteSoloItf fdPlayerMuteSolo;
+    //SLVolumeItf fdPlayerVolume;
     
     // recorder interfaces
-    SLObjectItf recorderObject;
-    SLRecordItf recorderRecord;
-    SLAndroidSimpleBufferQueueItf recorderBufferQueue;
+    //SLObjectItf recorderObject;
+    //SLRecordItf recorderRecord;
+    //SLAndroidSimpleBufferQueueItf recorderBufferQueue;
     
     // synthesized sawtooth clip
     //#define SAWTOOTH_FRAMES 8000
@@ -79,8 +80,8 @@ typedef struct Player {
     // 5 seconds of recorded audio at 16 kHz mono, 16-bit signed little endian
     //#define RECORDER_FRAMES (16000 * 5)
     //static short recorderBuffer[RECORDER_FRAMES];
-    unsigned recorderSize;
-    SLmilliHertz recorderSR;
+    //unsigned recorderSize;
+    //SLmilliHertz recorderSR;
     
     // pointer and size of the next player buffer to enqueue, and number of remaining buffers
     short *nextBuffer;
@@ -90,9 +91,7 @@ typedef struct Player {
 
 void createEngine(Player **ps);
 void createBufferQueueAudioPlayer(Player **ps);
-int createUriAudioPlayer(Player **ps);
-void setPlayingUriAudioPlayer(Player **ps, int isPlaying);
-void setLoopingUriAudioPlayer(Player **ps, int isLooping);
+void setPlayingAudioPlayer(Player **ps, int isPlaying);
 void setChannelMuteUriAudioPlayer(Player **ps, int chan, int mute);
 void setChannelSoloUriAudioPlayer(Player **ps, int chan, int solo);
 int getNumChannelsUriAudioPlayer(Player **ps);
@@ -102,10 +101,7 @@ void enableStereoPositionUriAudioPlayer(Player **ps, int enable);
 void setStereoPositionUriAudioPlayer(Player **ps, int permille);
 int enableReverb(Player **ps, int enabled);
 int selectClip(Player **ps, int which, int count);
-int createAudioPlayer(Player **ps);
-void setPlayingAssetAudioPlayer(Player **ps, int isPlaying);
 int createAudioRecorder(Player **ps);
-void startRecording(Player **ps);
 void shutdown(Player **ps);
 
 #endif /*PLAYER_H_*/
