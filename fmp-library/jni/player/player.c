@@ -51,7 +51,7 @@ static SLObjectItf outputMixObject = NULL;
 static SLEnvironmentalReverbItf outputMixEnvironmentalReverb = NULL;
 
 // buffer queue player interfaces
-static SLObjectItf bqPlayerObject = NULL;
+//static SLObjectItf bqPlayerObject = NULL;
 static SLPlayItf bqPlayerPlay;
 static SLAndroidSimpleBufferQueueItf bqPlayerBufferQueue;
 static SLEffectSendItf bqPlayerEffectSend;
@@ -142,34 +142,36 @@ void bqRecorderCallback(SLAndroidSimpleBufferQueueItf bq, void *context)
 
 
 // create the engine and output mix objects
-void createEngine()
+void createEngine(Player **ps)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // create engine
-    result = slCreateEngine(&engineObject, 0, NULL, 0, NULL, NULL);
+    result = slCreateEngine(&player->engineObject, 0, NULL, 0, NULL, NULL);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
     // realize the engine
-    result = (*engineObject)->Realize(engineObject, SL_BOOLEAN_FALSE);
+    result = (*engineObject)->Realize(player->engineObject, SL_BOOLEAN_FALSE);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
     // get the engine interface, which is needed in order to create other objects
-    result = (*engineObject)->GetInterface(engineObject, SL_IID_ENGINE, &engineEngine);
+    result = (*engineObject)->GetInterface(player->engineObject, SL_IID_ENGINE, &player->engineEngine);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
     // create output mix, with environmental reverb specified as a non-required interface
     const SLInterfaceID ids[1] = {SL_IID_ENVIRONMENTALREVERB};
     const SLboolean req[1] = {SL_BOOLEAN_FALSE};
-    result = (*engineEngine)->CreateOutputMix(engineEngine, &outputMixObject, 1, ids, req);
+    result = (*engineEngine)->CreateOutputMix(player->engineEngine, &player->outputMixObject, 1, ids, req);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
     // realize the output mix
-    result = (*outputMixObject)->Realize(outputMixObject, SL_BOOLEAN_FALSE);
+    result = (*outputMixObject)->Realize(player->outputMixObject, SL_BOOLEAN_FALSE);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
@@ -177,11 +179,11 @@ void createEngine()
     // this could fail if the environmental reverb effect is not available,
     // either because the feature is not present, excessive CPU load, or
     // the required MODIFY_AUDIO_SETTINGS permission was not requested and granted
-    result = (*outputMixObject)->GetInterface(outputMixObject, SL_IID_ENVIRONMENTALREVERB,
-            &outputMixEnvironmentalReverb);
+    result = (*outputMixObject)->GetInterface(player->outputMixObject, SL_IID_ENVIRONMENTALREVERB,
+            &player->outputMixEnvironmentalReverb);
     if (SL_RESULT_SUCCESS == result) {
         result = (*outputMixEnvironmentalReverb)->SetEnvironmentalReverbProperties(
-                outputMixEnvironmentalReverb, &reverbSettings);
+                player->outputMixEnvironmentalReverb, &reverbSettings);
         (void)result;
     }
     // ignore unsuccessful result codes for environmental reverb, as it is optional for this example
@@ -190,8 +192,10 @@ void createEngine()
 
 
 // create buffer queue audio player
-void createBufferQueueAudioPlayer()
+void createBufferQueueAudioPlayer(Player **ps)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // configure audio source
@@ -202,7 +206,7 @@ void createBufferQueueAudioPlayer()
     SLDataSource audioSrc = {&loc_bufq, &format_pcm};
 
     // configure audio sink
-    SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, outputMixObject};
+    SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, player->outputMixObject};
     SLDataSink audioSnk = {&loc_outmix, NULL};
 
     // create audio player
@@ -210,23 +214,23 @@ void createBufferQueueAudioPlayer()
             /*SL_IID_MUTESOLO,*/ SL_IID_VOLUME};
     const SLboolean req[3] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE,
             /*SL_BOOLEAN_TRUE,*/ SL_BOOLEAN_TRUE};
-    result = (*engineEngine)->CreateAudioPlayer(engineEngine, &bqPlayerObject, &audioSrc, &audioSnk,
+    result = (*engineEngine)->CreateAudioPlayer(player->engineEngine, &player->bqPlayerObject, &audioSrc, &audioSnk,
             3, ids, req);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
     // realize the player
-    result = (*bqPlayerObject)->Realize(bqPlayerObject, SL_BOOLEAN_FALSE);
+    result = (*player->bqPlayerObject)->Realize(player->bqPlayerObject, SL_BOOLEAN_FALSE);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
     // get the play interface
-    result = (*bqPlayerObject)->GetInterface(bqPlayerObject, SL_IID_PLAY, &bqPlayerPlay);
+    result = (*player->bqPlayerObject)->GetInterface(player->bqPlayerObject, SL_IID_PLAY, &bqPlayerPlay);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
     // get the buffer queue interface
-    result = (*bqPlayerObject)->GetInterface(bqPlayerObject, SL_IID_BUFFERQUEUE,
+    result = (*player->bqPlayerObject)->GetInterface(player->bqPlayerObject, SL_IID_BUFFERQUEUE,
             &bqPlayerBufferQueue);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
@@ -237,20 +241,20 @@ void createBufferQueueAudioPlayer()
     (void)result;
 
     // get the effect send interface
-    result = (*bqPlayerObject)->GetInterface(bqPlayerObject, SL_IID_EFFECTSEND,
+    result = (*player->bqPlayerObject)->GetInterface(player->bqPlayerObject, SL_IID_EFFECTSEND,
             &bqPlayerEffectSend);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
 #if 0   // mute/solo is not supported for sources that are known to be mono, as this is
     // get the mute/solo interface
-    result = (*bqPlayerObject)->GetInterface(bqPlayerObject, SL_IID_MUTESOLO, &bqPlayerMuteSolo);
+    result = (*player->bqPlayerObject)->GetInterface(player->bqPlayerObject, SL_IID_MUTESOLO, &bqPlayerMuteSolo);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 #endif
 
     // get the volume interface
-    result = (*bqPlayerObject)->GetInterface(bqPlayerObject, SL_IID_VOLUME, &bqPlayerVolume);
+    result = (*player->bqPlayerObject)->GetInterface(player->bqPlayerObject, SL_IID_VOLUME, &bqPlayerVolume);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
@@ -262,8 +266,10 @@ void createBufferQueueAudioPlayer()
 
 
 // create URI audio player
-int createUriAudioPlayer()
+int createUriAudioPlayer(Player **ps)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // convert Java string to UTF-8
@@ -277,13 +283,13 @@ int createUriAudioPlayer()
     SLDataSource audioSrc = {&loc_uri, &format_mime};
 
     // configure audio sink
-    SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, outputMixObject};
+    SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, player->outputMixObject};
     SLDataSink audioSnk = {&loc_outmix, NULL};
 
     // create audio player
     const SLInterfaceID ids[3] = {SL_IID_SEEK, SL_IID_MUTESOLO, SL_IID_VOLUME};
     const SLboolean req[3] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE};
-    result = (*engineEngine)->CreateAudioPlayer(engineEngine, &uriPlayerObject, &audioSrc,
+    result = (*engineEngine)->CreateAudioPlayer(player->engineEngine, &uriPlayerObject, &audioSrc,
             &audioSnk, 3, ids, req);
     // note that an invalid URI is not detected here, but during prepare/prefetch on Android,
     // or possibly during Realize on other platforms
@@ -325,8 +331,10 @@ int createUriAudioPlayer()
 
 // set the playing state for the URI audio player
 // to PLAYING (true) or PAUSED (false)
-void setPlayingUriAudioPlayer(int isPlaying)
+void setPlayingUriAudioPlayer(Player **ps, int isPlaying)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // make sure the URI audio player was created
@@ -343,8 +351,10 @@ void setPlayingUriAudioPlayer(int isPlaying)
 
 
 // set the whole file looping state for the URI audio player
-void setLoopingUriAudioPlayer(int isLooping)
+void setLoopingUriAudioPlayer(Player **ps, int isLooping)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // make sure the URI audio player was created
@@ -372,8 +382,10 @@ static SLMuteSoloItf getMuteSolo()
         return bqPlayerMuteSolo;
 }
 
-void setChannelMuteUriAudioPlayer(int chan, int mute)
+void setChannelMuteUriAudioPlayer(Player **ps, int chan, int mute)
 {
+    Player *player = *ps;
+    
     SLresult result;
     SLMuteSoloItf muteSoloItf = getMuteSolo();
     if (NULL != muteSoloItf) {
@@ -383,8 +395,10 @@ void setChannelMuteUriAudioPlayer(int chan, int mute)
     }
 }
 
-void setChannelSoloUriAudioPlayer(int chan, int solo)
+void setChannelSoloUriAudioPlayer(Player **ps, int chan, int solo)
 {
+    Player *player = *ps;
+    
     SLresult result;
     SLMuteSoloItf muteSoloItf = getMuteSolo();
     if (NULL != muteSoloItf) {
@@ -394,8 +408,10 @@ void setChannelSoloUriAudioPlayer(int chan, int solo)
     }
 }
 
-int getNumChannelsUriAudioPlayer()
+int getNumChannelsUriAudioPlayer(Player **ps)
 {
+    Player *player = *ps;
+    
     SLuint8 numChannels;
     SLresult result;
     SLMuteSoloItf muteSoloItf = getMuteSolo();
@@ -425,8 +441,10 @@ static SLVolumeItf getVolume()
         return bqPlayerVolume;
 }
 
-void setVolumeUriAudioPlayer(int millibel)
+void setVolumeUriAudioPlayer(Player **ps, int millibel)
 {
+    Player *player = *ps;
+    
     SLresult result;
     SLVolumeItf volumeItf = getVolume();
     if (NULL != volumeItf) {
@@ -436,8 +454,10 @@ void setVolumeUriAudioPlayer(int millibel)
     }
 }
 
-void setMuteUriAudioPlayer(int mute)
+void setMuteUriAudioPlayer(Player **ps, int mute)
 {
+    Player *player = *ps;
+    
     SLresult result;
     SLVolumeItf volumeItf = getVolume();
     if (NULL != volumeItf) {
@@ -447,8 +467,10 @@ void setMuteUriAudioPlayer(int mute)
     }
 }
 
-void enableStereoPositionUriAudioPlayer(int enable)
+void enableStereoPositionUriAudioPlayer(Player **ps, int enable)
 {
+    Player *player = *ps;
+    
     SLresult result;
     SLVolumeItf volumeItf = getVolume();
     if (NULL != volumeItf) {
@@ -458,8 +480,10 @@ void enableStereoPositionUriAudioPlayer(int enable)
     }
 }
 
-void setStereoPositionUriAudioPlayer(int permille)
+void setStereoPositionUriAudioPlayer(Player **ps, int permille)
 {
+    Player *player = *ps;
+    
     SLresult result;
     SLVolumeItf volumeItf = getVolume();
     if (NULL != volumeItf) {
@@ -470,17 +494,19 @@ void setStereoPositionUriAudioPlayer(int permille)
 }
 
 // enable reverb on the buffer queue player
-int enableReverb(int enabled)
+int enableReverb(Player **ps, int enabled)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // we might not have been able to add environmental reverb to the output mix
-    if (NULL == outputMixEnvironmentalReverb) {
+    if (NULL == player->outputMixEnvironmentalReverb) {
         return JNI_FALSE;
     }
 
     result = (*bqPlayerEffectSend)->EnableEffectSend(bqPlayerEffectSend,
-            outputMixEnvironmentalReverb, (SLboolean) enabled, (SLmillibel) 0);
+            player->outputMixEnvironmentalReverb, (SLboolean) enabled, (SLmillibel) 0);
     // and even if environmental reverb was present, it might no longer be available
     if (SL_RESULT_SUCCESS != result) {
         return JNI_FALSE;
@@ -491,8 +517,10 @@ int enableReverb(int enabled)
 
 
 // select the desired clip and play count, and enqueue the first buffer if idle
-int selectClip(int which, int count)
+int selectClip(Player **ps, int which, int count)
 {
+    Player *player = *ps;
+    
     switch (which) {
     case 0:     // CLIP_NONE
         nextBuffer = (short *) NULL;
@@ -540,8 +568,10 @@ int selectClip(int which, int count)
 
 
 // create asset audio player
-int createAudioPlayer()
+int createAudioPlayer(Player **ps)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // open asset as file descriptor
@@ -555,13 +585,13 @@ int createAudioPlayer()
     SLDataSource audioSrc = {&loc_fd, &format_mime};
 
     // configure audio sink
-    SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, outputMixObject};
+    SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, player->outputMixObject};
     SLDataSink audioSnk = {&loc_outmix, NULL};
 
     // create audio player
     const SLInterfaceID ids[3] = {SL_IID_SEEK, SL_IID_MUTESOLO, SL_IID_VOLUME};
     const SLboolean req[3] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE};
-    result = (*engineEngine)->CreateAudioPlayer(engineEngine, &fdPlayerObject, &audioSrc, &audioSnk,
+    result = (*engineEngine)->CreateAudioPlayer(player->engineEngine, &fdPlayerObject, &audioSrc, &audioSnk,
             3, ids, req);
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
@@ -601,8 +631,10 @@ int createAudioPlayer()
 
 
 // set the playing state for the asset audio player
-void setPlayingAssetAudioPlayer(int isPlaying)
+void setPlayingAssetAudioPlayer(Player **ps, int isPlaying)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // make sure the asset audio player was created
@@ -619,8 +651,10 @@ void setPlayingAssetAudioPlayer(int isPlaying)
 
 
 // create audio recorder
-int createAudioRecorder()
+int createAudioRecorder(Player **ps)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // configure audio source
@@ -639,7 +673,7 @@ int createAudioRecorder()
     // (requires the RECORD_AUDIO permission)
     const SLInterfaceID id[1] = {SL_IID_ANDROIDSIMPLEBUFFERQUEUE};
     const SLboolean req[1] = {SL_BOOLEAN_TRUE};
-    result = (*engineEngine)->CreateAudioRecorder(engineEngine, &recorderObject, &audioSrc,
+    result = (*engineEngine)->CreateAudioRecorder(player->engineEngine, &recorderObject, &audioSrc,
             &audioSnk, 1, id, req);
     if (SL_RESULT_SUCCESS != result) {
         return JNI_FALSE;
@@ -673,8 +707,10 @@ int createAudioRecorder()
 
 
 // set the recording state for the audio recorder
-void startRecording()
+void startRecording(Player **ps)
 {
+    Player *player = *ps;
+    
     SLresult result;
 
     // in case already recording, stop recording and clear buffer queue
@@ -705,13 +741,14 @@ void startRecording()
 
 
 // shut down the native audio system
-void shutdown()
+void shutdown(Player **ps)
 {
+    Player *player = *ps;
 
     // destroy buffer queue audio player object, and invalidate all associated interfaces
-    if (bqPlayerObject != NULL) {
-        (*bqPlayerObject)->Destroy(bqPlayerObject);
-        bqPlayerObject = NULL;
+    if (player->bqPlayerObject != NULL) {
+        (*player->bqPlayerObject)->Destroy(player->bqPlayerObject);
+        player->bqPlayerObject = NULL;
         bqPlayerPlay = NULL;
         bqPlayerBufferQueue = NULL;
         bqPlayerEffectSend = NULL;
@@ -748,17 +785,17 @@ void shutdown()
     }
 
     // destroy output mix object, and invalidate all associated interfaces
-    if (outputMixObject != NULL) {
-        (*outputMixObject)->Destroy(outputMixObject);
-        outputMixObject = NULL;
-        outputMixEnvironmentalReverb = NULL;
+    if (player->outputMixObject != NULL) {
+        (*outputMixObject)->Destroy(player->outputMixObject);
+        player->outputMixObject = NULL;
+        player->outputMixEnvironmentalReverb = NULL;
     }
 
     // destroy engine object, and invalidate all associated interfaces
-    if (engineObject != NULL) {
-        (*engineObject)->Destroy(engineObject);
-        engineObject = NULL;
-        engineEngine = NULL;
+    if (player->engineObject != NULL) {
+        (*engineObject)->Destroy(player->engineObject);
+        player->engineObject = NULL;
+        player->engineEngine = NULL;
     }
 
 }
