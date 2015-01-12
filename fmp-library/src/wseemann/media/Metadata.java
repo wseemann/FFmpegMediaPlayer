@@ -1,7 +1,7 @@
 /*
  * FFmpegMediaPlayer: A unified interface for playing audio files and streams.
  *
- * Copyright 2014 William Seemann
+ * Copyright 2015 William Seemann
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,10 @@
 
 package wseemann.media;
 
-import java.util.Collections;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
-import java.util.Set;
+import java.util.TimeZone;
 
 /**
    Class to hold the media's metadata.  Metadata are used
@@ -34,7 +35,8 @@ import java.util.Set;
    The caller is expected to know the type of the metadata and call
    the right get* method to fetch its value.
    
-   @hide
+   //@hide
+   //@deprecated Use {@link MediaMetadata}.
  */
 public class Metadata
 {
@@ -54,159 +56,41 @@ public class Metadata
     /**
      * {@hide}
      */
-    public static final int ANY = 0;  // Never used for metadata returned, only for filtering.
-                                      // Keep in sync with kAny in MediaPlayerService.cpp
-
-    // Playback capabilities.
-    /**
-     * Indicate whether the media can be paused
-     */
-    public static final int PAUSE_AVAILABLE         = 1; // Boolean
-    /**
-     * Indicate whether the media can be backward seeked
-     */
-    public static final int SEEK_BACKWARD_AVAILABLE = 2; // Boolean
-    /**
-     * Indicate whether the media can be forward seeked
-     */
-    public static final int SEEK_FORWARD_AVAILABLE  = 3; // Boolean
-    /**
-     * Indicate whether the media can be seeked
-     */
-    public static final int SEEK_AVAILABLE          = 4; // Boolean
-
-    /**
-     * The metadata key to retrieve the name of the set this work belongs to.
-     */
-    public static final String METADATA_KEY_ALBUM = "album";
-    /**
-     * The metadata key to retrieve the main creator of the set/album, if different 
-     * from artist. e.g. "Various Artists" for compilation albums.
-     */
-    public static final String METADATA_KEY_ALBUM_ARTIST = "album_artist";
-    /**
-     * The metadata key to retrieve the main creator of the work.
-     */
-    public static final String METADATA_KEY_ARTIST = "artist";
-    /**
-     * The metadata key to retrieve the any additional description of the file.
-     */
-    public static final String METADATA_KEY_COMMENT = "comment";
-    /**
-     * The metadata key to retrieve the who composed the work, if different from artist.
-     */
-    public static final String METADATA_KEY_COMPOSER = "composer";
-    /**
-     * The metadata key to retrieve the name of copyright holder.
-     */
-    public static final String METADATA_KEY_COPYRIGHT = "copyright";
-    /**
-     * The metadata key to retrieve the date when the file was created, preferably in ISO 8601.
-     */
-    public static final String METADATA_KEY_CREATION_TIME = "creation_time";
-    /**
-     * The metadata key to retrieve the date when the work was created, preferably in ISO 8601.
-     */
-    public static final String METADATA_KEY_DATE = "date";
-    /**
-     * The metadata key to retrieve the number of a subset, e.g. disc in a multi-disc collection.
-     */
-    public static final String METADATA_KEY_DISC = "disc";
-    /**
-     * The metadata key to retrieve the name/settings of the software/hardware that produced the file.
-     */
-    public static final String METADATA_KEY_ENCODER = "encoder";
-    /**
-     * The metadata key to retrieve the person/group who created the file.
-     */
-    public static final String METADATA_KEY_ENCODED_BY = "encoded_by";
-    /**
-     * The metadata key to retrieve the original name of the file.
-     */
-    public static final String METADATA_KEY_FILENAME = "filename";
-    /**
-     * The metadata key to retrieve the genre of the work.
-     */
-    public static final String METADATA_KEY_GENRE = "genre";
-    /**
-     * The metadata key to retrieve the main language in which the work is performed, preferably
-     * in ISO 639-2 format. Multiple languages can be specified by separating them with commas.
-     */
-    public static final String METADATA_KEY_LANGUAGE = "language";
-    /**
-     * The metadata key to retrieve the artist who performed the work, if different from artist.
-     * E.g for "Also sprach Zarathustra", artist would be "Richard Strauss" and performer "London 
-     * Philharmonic Orchestra".
-     */
-    public static final String METADATA_KEY_PERFORMER = "performer";
-    /**
-     * The metadata key to retrieve the name of the label/publisher.
-     */
-    public static final String METADATA_KEY_PUBLISHER = "publisher";
-    /**
-     * The metadata key to retrieve the name of the service in broadcasting (channel name).
-     */
-    public static final String METADATA_KEY_SERVICE_NAME = "service_name";
-    /**
-     * The metadata key to retrieve the name of the service provider in broadcasting.
-     */
-    public static final String METADATA_KEY_SERVICE_PROVIDER = "service_provider";
-    /**
-     * The metadata key to retrieve the name of the work.
-     */
-    public static final String METADATA_KEY_TITLE = "title";
-    /**
-     * The metadata key to retrieve the number of this work in the set, can be in form current/total.
-     */
-    public static final String METADATA_KEY_TRACK = "track";
-    /**
-     * The metadata key to retrieve the total bitrate of the bitrate variant that the current stream 
-     * is part of.
-     */
-    public static final String METADATA_KEY_VARIANT_BITRATE = "bitrate";
-    /**
-     * The metadata key to retrieve the duration of the work in milliseconds.
-     */
-    public static final String METADATA_KEY_DURATION = "duration";
-    /**
-     * The metadata key to retrieve the audio codec of the work.
-     */
-    public static final String METADATA_KEY_AUDIO_CODEC = "audio_codec";
-    /**
-     * The metadata key to retrieve the video codec of the work.
-     */
-    public static final String METADATA_KEY_VIDEO_CODEC = "video_codec";
-    /**
-     * This key retrieves the video rotation angle in degrees, if available.
-     * The video rotation angle may be 0, 90, 180, or 270 degrees.
-     */
-    public static final String METADATA_KEY_VIDEO_ROTATION = "rotation";
-    
-    // Shorthands to set the MediaPlayer's metadata filter.
-    /**
-     * {@hide}
-     */
-    public static final Set<Integer> MATCH_NONE = Collections.EMPTY_SET;
-    /**
-     * {@hide}
-     */
-    public static final Set<Integer> MATCH_ALL = Collections.singleton(ANY);
-
-    /**
-     * {@hide}
-     */
     public static final int STRING_VAL     = 1;
-
-    private static final String TAG = "media.Metadata";
-
-    private HashMap<String, String> mMetadata =
-            new HashMap<String, String>();
-
     /**
      * {@hide}
      */
-    public Metadata() { }
+    public static final int INTEGER_VAL    = 2;
+    /**
+     * {@hide}
+     */
+    public static final int BOOLEAN_VAL    = 3;
+    /**
+     * {@hide}
+     */
+    public static final int LONG_VAL       = 4;
+    /**
+     * {@hide}
+     */
+    public static final int DOUBLE_VAL     = 5;
+    /**
+     * {@hide}
+     */
+    public static final int DATE_VAL       = 6;
+    /**
+     * {@hide}
+     */
+    public static final int BYTE_ARRAY_VAL = 7;
+    // FIXME: misses a type for shared heap is missing (MemoryFile).
+    // FIXME: misses a type for bitmaps.
+    //private static final int LAST_TYPE = 7;
+    
+    //private static final String TAG = "media.Metadata";
 
+    // After a successful parsing, set the parcel with the serialized metadata.
+    //private Parcel mParcel;
+    private HashMap<String, String> mParcel;
+    
     /**
      * Check a parcel containing metadata is well formed. The header
      * is checked as well as the individual records format. However, the
@@ -236,38 +120,100 @@ public class Metadata
      * {@hide}
      */
     public boolean parse(HashMap<String, String> metadata) {
-    	mMetadata = metadata;
-    	
-        return true;
+    	if (metadata == null) {
+    		return false;
+    	} else {
+    		mParcel = metadata;
+    		return true;
+    	}
     }
-
-    /**
-     * @return The set of metadata ID found.
-     */
-    public Set<String> keySet() {
-        return mMetadata.keySet();
-    }
-
+    
     /**
      * @return true if a value is present for the given key.
      */
     public boolean has(final String metadataId) {
-        /*if (!checkMetadataId(metadataId)) {
+        if (!checkMetadataId(metadataId)) {
             throw new IllegalArgumentException("Invalid key: " + metadataId);
-        }*/
-        return mMetadata.containsKey(metadataId);
+        }
+        return mParcel.containsKey(metadataId);
     }
-
+    
     // Accessors.
     // Caller must make sure the key is present using the {@code has}
     // method otherwise a RuntimeException will occur.
 
     /**
+     * @return a map containing all of the available metadata.
+     */
+    public HashMap<String, String> getAll() {
+        return mParcel;
+    }
+    
+    /**
      * {@hide}
      */
     public String getString(final String key) {
-        //checkType(key, STRING_VAL);
-        return mMetadata.get(key);
+        checkType(key, STRING_VAL);
+        return String.valueOf(mParcel.get(key));
+    }
+
+    /**
+     * {@hide}
+     */
+    public int getInt(final String key) {
+        checkType(key, INTEGER_VAL);
+        return Integer.valueOf(mParcel.get(key));
+    }
+
+    /**
+     * Get the boolean value indicated by key
+     */
+    public boolean getBoolean(final String key) {
+        checkType(key, BOOLEAN_VAL);
+        return Integer.valueOf(mParcel.get(key)) == 1;
+    }
+
+    /**
+     * {@hide}
+     */
+    public long getLong(final String key) {
+        checkType(key, LONG_VAL);
+        return Long.valueOf(mParcel.get(key));
+    }
+
+    /**
+     * {@hide}
+     */
+    public double getDouble(final String key) {
+        checkType(key, DOUBLE_VAL);
+        return Double.valueOf(mParcel.get(key));
+    }
+
+    /**
+     * {@hide}
+     */
+    public byte[] getByteArray(final String key) {
+        checkType(key, BYTE_ARRAY_VAL);
+        return mParcel.get(key).getBytes();
+    }
+
+    /**
+     * {@hide}
+     */
+    public Date getDate(final String key) {
+        checkType(key, DATE_VAL);
+        final long timeSinceEpoch = Long.valueOf(mParcel.get(key));
+        final String timeZone = mParcel.get(key);
+
+        if (timeZone.length() == 0) {
+            return new Date(timeSinceEpoch);
+        } else {
+            TimeZone tz = TimeZone.getTimeZone(timeZone);
+            Calendar cal = Calendar.getInstance(tz);
+
+            cal.setTimeInMillis(timeSinceEpoch);
+            return cal.getTime();
+        }
     }
 
     /**
@@ -275,25 +221,23 @@ public class Metadata
      * @param val Metadata key to test.
      * @return true if it is in a valid range.
      **/
-    /*private boolean checkMetadataId(final String val) {
-        if (val <= ANY || (LAST_SYSTEM < val && val < FIRST_CUSTOM)) {
+    private boolean checkMetadataId(final String val) {
+        /*if (val <= ANY || (LAST_SYSTEM < val && val < FIRST_CUSTOM)) {
             Log.e(TAG, "Invalid metadata ID " + val);
             return false;
-        }
+        }*/
         return true;
-    }*/
+    }
 
     /**
      * Check the type of the data match what is expected.
      */
-    /*private void checkType(final String key, final String expectedType) {
-        final String pos = mKeyToPosMap.get(key);
-
-        mParcel.setDataPosition(pos);
-
-        final int type = mParcel.readInt();
-        if (type != expectedType) {
+    private void checkType(final String key, final int expectedType) {
+    	String type = mParcel.get(key);
+    	
+    	if (type == null) {
+        //if (type != expectedType) {
             throw new IllegalStateException("Wrong type " + expectedType + " but got " + type);
         }
-    }*/
+    }
 }

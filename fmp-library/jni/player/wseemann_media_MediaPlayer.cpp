@@ -28,8 +28,7 @@
 #include "Errors.h"  // for int
 
 extern "C" {
-    #include "libavcodec/avcodec.h"
-    #include "libavformat/avformat.h"
+    #include "ffmpeg_mediaplayer.h"
 }
 
 // ----------------------------------------------------------------------------
@@ -765,65 +764,46 @@ wseemann_media_FFmpegMediaPlayer_setMetadataFilter(JNIEnv *env, jobject thiz, jo
 }
 
 static jobject
-wseemann_media_FFmpegMediaPlayer_getMetadata(JNIEnv *env, jobject thiz)
+wseemann_media_FFmpegMediaPlayer_getMetadata(JNIEnv *env, jobject thiz, jboolean update_only,
+                                      jboolean apply_filter, jobject reply)
 {
     MediaPlayer* media_player = getMediaPlayer(env, thiz);
     if (media_player == NULL ) {
         jniThrowException(env, "java/lang/IllegalStateException", NULL);
-        return NULL;
-    }
-
-    char *value;
-    int i;
-    const char * metadata_keys[25];
-    
-    metadata_keys[0] = "album";
-    metadata_keys[1] = "album_artist";
-    metadata_keys[2] = "artist";
-    metadata_keys[3] = "comment";
-    metadata_keys[4] = "composer";
-    metadata_keys[5] = "copyright";
-    metadata_keys[6] = "creation_time";
-    metadata_keys[7] = "date";
-    metadata_keys[8] = "disc";
-    metadata_keys[9] = "encoder";
-    metadata_keys[10] = "encoded_by";
-    metadata_keys[11] = "filename";
-    metadata_keys[12] = "genre";
-    metadata_keys[13] = "language";
-    metadata_keys[14] = "performer";
-    metadata_keys[15] = "publisher";
-    metadata_keys[16] = "service_name";
-    metadata_keys[17] = "service_provider";
-    metadata_keys[18] = "title";
-    metadata_keys[19] = "track";
-    metadata_keys[20] = "bitrate";
-    metadata_keys[21] = "duration";
-    metadata_keys[22] = "audio_codec";
-    metadata_keys[23] = "video_codec";
-    metadata_keys[24] = "rotation";
-
-    jclass hashMap_Clazz = env->FindClass("java/util/HashMap");
-    jmethodID gHashMap_initMethodID = env->GetMethodID(hashMap_Clazz, "<init>", "()V");
-    jobject hashmap = env->NewObject(hashMap_Clazz, gHashMap_initMethodID);
-    jmethodID gHashMap_putMethodID = env->GetMethodID(hashMap_Clazz, "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
-
-    for (i = 0; i < 25; i++) {
-    	value = NULL;
-    	media_player->getMetadata(metadata_keys[i], &value);
-
-    	if (value) {
-    		jstring jKey = env->NewStringUTF(metadata_keys[i]);
-    		jstring jValue = env->NewStringUTF(value);
-
-    		(jobject) env->CallObjectMethod(hashmap, gHashMap_putMethodID, jKey, jValue);
-    		
-    		env->DeleteLocalRef(jKey);
-    		env->DeleteLocalRef(jValue);
-    	}
+        return JNI_FALSE;
     }
     
-    return hashmap;
+    // On return metadata is positioned at the beginning of the
+    // metadata. Note however that the parcel actually starts with the
+    // return code so you should not rewind the parcel using
+    // setDataPosition(0).
+    AVDictionary *metadata = NULL;
+
+    if (media_player->getMetadata(update_only, apply_filter, &metadata) == 0) {
+        jclass hashMap_Clazz = env->FindClass("java/util/HashMap");
+        jmethodID gHashMap_initMethodID = env->GetMethodID(hashMap_Clazz, "<init>", "()V");
+        jobject map = env->NewObject(hashMap_Clazz, gHashMap_initMethodID);
+        jmethodID gHashMap_putMethodID = env->GetMethodID(hashMap_Clazz, "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        
+        int i = 0;
+        
+        for (i = 0; i < metadata->count; i++) {
+            jstring jKey = env->NewStringUTF(metadata->elems[i].key);
+            jstring jValue = env->NewStringUTF(metadata->elems[i].value);
+            (jobject) env->CallObjectMethod(map, gHashMap_putMethodID, jKey, jValue);
+            env->DeleteLocalRef(jKey);
+            env->DeleteLocalRef(jValue);
+        }
+        
+        if (metadata) {
+            av_dict_free(&metadata);
+            
+        }
+        
+        return map;
+    } else {
+        return reply;
+    }
 }
 
 // This function gets some field IDs, which in turn causes class initialization.
@@ -1010,7 +990,7 @@ static JNINativeMethod gMethods[] = {
     {"isLooping",           "()Z",                              (void *)wseemann_media_FFmpegMediaPlayer_isLooping},
     {"setVolume",           "(FF)V",                            (void *)wseemann_media_FFmpegMediaPlayer_setVolume},
     {"native_setMetadataFilter", "([Ljava/lang/String;[Ljava/lang/String;)I", (void *)wseemann_media_FFmpegMediaPlayer_setMetadataFilter},
-    {"native_getMetadata",  "()Ljava/util/HashMap;",            (void *)wseemann_media_FFmpegMediaPlayer_getMetadata},
+    {"native_getMetadata", "(ZZLjava/util/HashMap;)Ljava/util/HashMap;", (void *)wseemann_media_FFmpegMediaPlayer_getMetadata},
     {"native_init",         "()V",                              (void *)wseemann_media_FFmpegMediaPlayer_native_init},
     {"native_setup",        "(Ljava/lang/Object;[B)V",          (void *)wseemann_media_FFmpegMediaPlayer_native_setup},
     {"native_finalize",     "()V",                              (void *)wseemann_media_FFmpegMediaPlayer_native_finalize},

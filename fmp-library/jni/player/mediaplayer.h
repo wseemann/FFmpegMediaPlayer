@@ -23,8 +23,6 @@
 #include <pthread.h>
 
 extern "C" {
-	#include "libavcodec/avcodec.h"
-    #include "libavformat/avformat.h"
     #include "ffmpeg_mediaplayer.h"
 }
 
@@ -78,7 +76,7 @@ public:
             status_t        setDataSource(const char *url, const char *headers);
             status_t        setDataSource(int fd, int64_t offset, int64_t length);
             status_t        setMetadataFilter(char *allow[], char *block[]);
-            status_t        getMetadata(const char *key, char **value);
+            status_t        getMetadata(bool update_only, bool apply_filter, AVDictionary **metadata);
             //status_t        setVideoSurface(const sp<Surface>& surface);
             status_t        setListener(MediaPlayerListener *listener);
             MediaPlayerListener * getListener();

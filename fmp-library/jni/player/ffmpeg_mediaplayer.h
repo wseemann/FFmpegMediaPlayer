@@ -21,6 +21,7 @@
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/dict.h>
 #include <pthread.h>
 
 #define AUDIO_DATA_ID 1
@@ -89,6 +90,11 @@ typedef struct State {
 	int player_started;
 } State;
 
+struct AVDictionary {
+	int count;
+	AVDictionaryEntry *elems;
+};
+
 void clear_l(State **ps);
 void disconnect(State **ps);
 int setNotifyListener(State **ps,  void* clazz, void (*listener) (void*, int, int, int, int));
@@ -96,11 +102,11 @@ int setInitAudioTrackListener(State **ps,  void* clazz, int (*listener) (void*, 
 int setWriteAudioListener(State **ps,  void* clazz, void (*listener) (void*, int16_t *, int, int));
 int setDataSourceURI(State **ps, const char *url, const char *headers);
 int setDataSourceFD(State **ps, int fd, int64_t offset, int64_t length);
+const char* extract_metadata(State **ps, const char* key);
 int suspend();
 int resume();
 int setMetadataFilter(State **ps, char *allow[], char *block[]);
-//int getMetadata(bool update_only, bool apply_filter, Parcel *metadata);
-int get_metadata(State **ps, const char* key, char** value);
+int getMetadata(State **ps, AVDictionary **metadata);
 //int setVideoSurface(const sp<Surface>& surface);
 int prepareAsync_l(State **ps);
 int prepare(State **ps);

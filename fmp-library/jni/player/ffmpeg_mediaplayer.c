@@ -29,8 +29,11 @@
 const char *DURATION = "duration";
 const char *AUDIO_CODEC = "audio_codec";
 const char *VIDEO_CODEC = "video_codec";
-const char *ARTIST = "artist";
-const char *TITLE = "title";
+const char *ICY_METADATA = "icy_metadata";
+//const char *ICY_ARTIST = "icy_artist";
+//const char *ICY_TITLE = "icy_title";
+const char *ROTATE = "rotate";
+const char *FRAMERATE = "framerate";
 
 const int SUCCESS = 0;
 const int FAILURE = -1;
@@ -180,8 +183,48 @@ int setMetadataFilter(State **ps, char *allow[], char *block[])
 	return SUCCESS;
 }
 
-void get_duration(AVFormatContext *ic, char * value)
-{
+void get_shoutcast_metadata(AVFormatContext *ic) {
+    char *value = NULL;
+    
+    if (av_opt_get(ic, "icy_metadata_packet", 1, (uint8_t **) &value) < 0) {
+        value = NULL;
+    }
+	
+    if (value && value[0]) {
+    	av_dict_set(&ic->metadata, ICY_METADATA, value, 0);
+    	
+    	/*int first_pos = first_char_pos(value, '\'');
+        int last_pos = first_char_pos(value, ';') - 2;
+        int pos = last_pos - first_pos;
+        
+        if (pos == 0) {
+        	return;
+        }
+        
+        char temp[pos];
+        memcpy(temp, value + first_pos + 1 , pos);
+        temp[pos] = '\0';
+        value = temp;
+
+    	first_pos = first_char_pos(value, '-') - 1;
+        
+        char artist[first_pos];
+        memcpy(artist, value, first_pos);
+        artist[first_pos] = '\0';
+        
+		av_dict_set(&ic->metadata, ICY_ARTIST, artist, 0);
+        
+        pos = strlen(value) - first_char_pos(value, '-') + 2;
+         
+        char album[pos];
+        memcpy(album, value + first_char_pos(value, '-') + 2, pos);
+        album[pos] = '\0';
+        
+		av_dict_set(&ic->metadata, ICY_TITLE, album, 0);*/
+    }
+}
+
+void get_duration(AVFormatContext *ic, char * value) {
 	int duration = 0;
 
 	if (ic) {
@@ -193,8 +236,7 @@ void get_duration(AVFormatContext *ic, char * value)
 	sprintf(value, "%d", duration); // %i
 }
 
-void set_codec(AVFormatContext *ic, int i)
-{
+void set_codec(AVFormatContext *ic, int i) {
     const char *codec_type = av_get_media_type_string(ic->streams[i]->codec->codec_type);
 
 	if (!codec_type) {
@@ -210,23 +252,69 @@ void set_codec(AVFormatContext *ic, int i)
 	}
 }
 
-int get_metadata(State **ps, const char* key, char** value)
-{
-    *value = NULL;
+void set_rotation(State *s) {
+    
+	if (!extract_metadata(&s, ROTATE) && s->video_st && s->video_st->metadata) {
+		AVDictionaryEntry *entry = av_dict_get(s->video_st->metadata, ROTATE, NULL, AV_DICT_IGNORE_SUFFIX);
+        
+        if (entry && entry->value) {
+            av_dict_set(&s->pFormatCtx->metadata, ROTATE, entry->value, 0);
+        }
+	}
+}
+
+void set_framerate(State *s) {
+	char value[30] = "0";
+	
+	if (s->video_st && s->video_st->avg_frame_rate.den && s->video_st->avg_frame_rate.num) {
+		double d = av_q2d(s->video_st->avg_frame_rate);
+		uint64_t v = lrintf(d * 100);
+		if (v % 100) {
+			sprintf(value, "%3.2f", d);
+		} else if (v % (100 * 1000)) {
+			sprintf(value,  "%1.0f", d);
+		} else {
+			sprintf(value, "%1.0fk", d / 1000);
+		}
+		
+	    av_dict_set(&s->pFormatCtx->metadata, FRAMERATE, value, 0);
+	}
+}
+
+const char* extract_metadata(State **ps, const char* key) {
+	printf("extract_metadata\n");
+    char* value = NULL;
 	
 	State *state = *ps;
     
 	if (!state || !state->pFormatCtx) {
-		return FAILURE;
+		return value;
 	}
 
 	if (key) {
 		if (av_dict_get(state->pFormatCtx->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)) {
-			*value = av_dict_get(state->pFormatCtx->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)->value;
+			value = av_dict_get(state->pFormatCtx->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)->value;
+		} else if (state->audio_st && av_dict_get(state->audio_st->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)) {
+			value = av_dict_get(state->audio_st->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)->value;
+		} else if (state->video_st && av_dict_get(state->video_st->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)) {
+			value = av_dict_get(state->video_st->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)->value;
 		}
 	}
 
-	return SUCCESS;
+	return value;
+}
+
+int getMetadata(State **ps, AVDictionary **metadata) {
+    State *state = *ps;
+    
+    if (!state || !state->pFormatCtx) {
+        return FAILURE;
+    }
+    
+    get_shoutcast_metadata(state->pFormatCtx);
+    av_dict_copy(metadata, state->pFormatCtx->metadata, 0);
+    
+    return SUCCESS;
 }
 
 /*int setVideoSurface(const sp<Surface>& surface)
@@ -558,6 +646,7 @@ int player_prepare(State **ps, int from_thread)
     printf("Path: %s\n", state->filename);
 
     AVDictionary *options = NULL;
+    av_dict_set(&options, "icy", "1", 0);
     av_dict_set(&options, "user-agent", "FFmpegMediaPlayer", 0);
     
     if (state->headers) {
@@ -588,6 +677,8 @@ int player_prepare(State **ps, int from_thread)
 	get_duration(state->pFormatCtx, duration);
 	av_dict_set(&state->pFormatCtx->metadata, DURATION, duration, 0);
 	
+	get_shoutcast_metadata(state->pFormatCtx);
+	
     // Find the first audio and video stream
 	for (i = 0; i < state->pFormatCtx->nb_streams; i++) {
 		if (state->pFormatCtx->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO && video_index < 0) {
@@ -616,6 +707,9 @@ int player_prepare(State **ps, int from_thread)
 		return MEDIA_ERROR;
 	}
 
+    set_rotation(state);
+    set_framerate(state);
+	
 	state->pFormatCtx->interrupt_callback.callback = decode_interrupt_cb;
 	state->pFormatCtx->interrupt_callback.opaque = state;
 	

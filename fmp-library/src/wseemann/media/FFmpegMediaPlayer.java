@@ -1,7 +1,7 @@
 /*
  * FFmpegMediaPlayer: A unified interface for playing audio files and streams.
  *
- * Copyright 2014 William Seemann
+ * Copyright 2015 William Seemann
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1221,29 +1221,22 @@ public class FFmpegMediaPlayer
      // FIXME: unhide.
      * {@hide}
      */
-    public Metadata getMetadata(final boolean update_only,
-                                final boolean apply_filter) {
-        //Parcel reply = Parcel.obtain();
-        Metadata data = new Metadata();
-
-        HashMap<String, String> metadata = native_getMetadata();
-        /*if (!native_getMetadata(update_only, apply_filter, reply)) {
-            reply.recycle();
+    public Metadata getMetadata() {//final boolean update_only,
+    	//	final boolean apply_filter) {
+    	boolean update_only = false;
+    	boolean apply_filter = false;
+    	
+    	Metadata data = new Metadata();
+    	HashMap<String, String> metadata = null;
+        if ((metadata = native_getMetadata(update_only, apply_filter, metadata)) == null) {
             return null;
-        }*/
+        }
 
         // Metadata takes over the parcel, don't recycle it unless
         // there is an error.
-        /*if (!data.parse(reply)) {
-            reply.recycle();
-            return null;
-        }
-        return data;*/
-        
-        if (!data.parse(metadata)) {
-            return null;
-        }
-        
+    	if (!data.parse(metadata)) {
+    		return null;
+    	}
     	return data;
     }
 
@@ -1577,9 +1570,9 @@ public class FFmpegMediaPlayer
      *                   metadata. Valid only if the call was successful.
      * @return The status code.
      */
-    private native final HashMap<String, String> native_getMetadata();//boolean update_only,
-                                                    //boolean apply_filter,
-                                                    //Parcel reply);
+    private native final HashMap<String, String> native_getMetadata(boolean update_only,
+                                                    boolean apply_filter,
+                                                    HashMap<String, String> reply);
 
     /**
      * @param request Parcel with the 2 serialized lists of allowed

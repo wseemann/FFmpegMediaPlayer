@@ -53,7 +53,7 @@ MediaPlayer::MediaPlayer()
     mLeftVolume = mRightVolume = 1.0;
     mVideoWidth = mVideoHeight = 0;
     //mLockThreadId = 0;
-    pthread_mutex_init(mLock, NULL);
+    //pthread_mutex_init(mLock, NULL);
     mAudioSessionId = 0;
     mSendLevel = 0;
 }
@@ -212,14 +212,14 @@ status_t MediaPlayer::setMetadataFilter(char *allow[], char *block[])
     return ::setMetadataFilter(&state, allow, block);
 }
 
-status_t MediaPlayer::getMetadata(const char *key, char **value)
+status_t MediaPlayer::getMetadata(bool update_only, bool apply_filter, AVDictionary **metadata)
 {
     __android_log_write(ANDROID_LOG_DEBUG, LOG_TAG, "getMetadata");
     //Mutex::Autolock lock(mLock);
     if (state == NULL) {
         return NO_INIT;
     }
-    return ::get_metadata(&state, key, value);
+    return ::getMetadata(&state, metadata);
 }
 
 /*status_t MediaPlayer::setVideoSurface(const sp<Surface>& surface)
