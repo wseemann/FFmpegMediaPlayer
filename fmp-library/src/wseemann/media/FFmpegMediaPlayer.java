@@ -609,9 +609,9 @@ public class FFmpegMediaPlayer
     
 	private static final String [] JNI_LIBRARIES = {
 		"avutil",
+		"swresample",
 		"avcodec",
 		"avformat",
-		"swresample",
 		"ffmpeg_mediaplayer_jni"		
 	};
     
