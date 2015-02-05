@@ -12,6 +12,8 @@ Donations can be made via PayPal:
   <img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif">
 </a>
 
+<a href="https://flattr.com/submit/auto?user_id=wseemann&url=https%3A%2F%2Fgithub.com%2Fwseemann%2FFFmpegMediaPlayer" target="_blank"><img src="//api.flattr.com/button/flattr-badge-large.png" alt="Flattr this" title="Flattr this" border="0"></a>
+
 Overview
 --------
 
