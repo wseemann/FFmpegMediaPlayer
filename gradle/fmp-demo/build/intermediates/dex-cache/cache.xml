@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items version="2" >
+
+    <item
+        jar="/Users/seemann/Desktop/FFmpegMediaMetadataRetriever/gradle/fmmr-demo/demo/libs/fmmr.jar"
+        jumboMode="false"
+        revision="21.1.2"
+        sha1="c5f5685a89354f42c86e08f26128dacfa16a8efc">
+        <dex dex="/Users/seemann/Desktop/FFmpegMediaMetadataRetriever/gradle/fmmr-demo/demo/build/intermediates/pre-dexed/debug/fmmr-83ee18b817386dd22d827b25263a7d881cf2d977.jar" />
+    </item>
+    <item
+        jar="/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/libs/fmp.jar"
+        jumboMode="false"
+        revision="21.1.2"
+        sha1="f6225cc05971bf0940a8db0bab12fa9439c3bce7">
+        <dex dex="/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/build/intermediates/pre-dexed/debug/fmp-81b84aae6f557815f8769ebec5c427db5b3bff03.jar" />
+    </item>
+    <item
+        jar="/Users/seemann/Library/Android/sdk/extras/android/m2repository/com/android/support/support-v4/18.0.0/support-v4-18.0.0.jar"
+        jumboMode="false"
+        revision="21.1.2"
+        sha1="44ec51e9d395a47aab135e5e1b556c0007442156">
+        <dex dex="/Users/seemann/Desktop/FFmpegMediaMetadataRetriever/gradle/fmmr-demo/demo/build/intermediates/pre-dexed/debug/support-v4-18.0.0-5c148ef5455040ebd035665d83d0e61b0bb1e9ad.jar" />
+    </item>
+
+</items>

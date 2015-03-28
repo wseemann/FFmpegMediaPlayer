@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="fmp">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/demo/libs/fmp.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

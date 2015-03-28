@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- From: file:/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/src/main/res/values/colors.xml -->
+    <eat-comment/>
+    <color name="blue">#ff00c8ff</color>
+    <color name="selection_background_color_light">#FEBB20</color>
+    <!-- From: file:/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/src/main/res/values/dimens.xml -->
+    <eat-comment/>
+    <dimen name="activity_horizontal_margin">16dp</dimen>
+    <dimen name="activity_vertical_margin">16dp</dimen>
+    <dimen name="mini_controller_font_size_line1">15sp</dimen>
+    <dimen name="mini_controller_font_size_line2">13sp</dimen>
+    <dimen name="mini_controller_icon_height">50dp</dimen>
+    <dimen name="mini_controller_icon_width">89dp</dimen>
+    <!-- From: file:/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/src/main/res/values/strings.xml -->
+    <eat-comment/>
+    <string name="app_name">FMP Demo</string>
+    <string name="artwork">Artwork</string>
+    <string name="buffering_message">Buffering. Please wait…</string>
+    <string name="durationformatlong" translatable="false"><ns1:g id="format">%1$d:%3$02d:%5$02d</ns1:g></string>
+    <string name="durationformatshort" translatable="false"><ns1:g id="format">%2$d:%5$02d</ns1:g></string>
+    <string name="error_message">Metadata could not be retrieved</string>
+    <string name="go">Go</string>
+    <string name="hour">1 hour</string>
+    <string name="hours"><ns1:g id="hours">%s</ns1:g> hours</string>
+    <string name="minute">"1 minute"</string>
+    <string name="minutes">"<ns1:g id="minutes">%s</ns1:g> minutes"</string>
+    <string name="no_metadata">No metadata</string>
+    <!-- From: file:/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/src/main/res/values/strings2.xml -->
+    <eat-comment/>
+    <string name="notification_artist_album"><ns1:g id="album">%2$s</ns1:g>\n<ns1:g id="artist">%1$s</ns1:g></string>
+    <!-- From: file:/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/src/main/res/values/strings.xml -->
+    <eat-comment/>
+    <string name="playback_failed">Sorry, the player does not support this type of media file.</string>
+    <string name="repeat_all_notif">Repeating all media</string>
+    <string name="repeat_current_notif">Repeating current media</string>
+    <string name="repeat_off_notif">Repeat is off</string>
+    <string name="service_start_error_msg">Sorry, the media could not be played.</string>
+    <string name="service_start_error_title">Playback problem</string>
+    <string name="shuffle_off_notif">Shuffle is off</string>
+    <string name="shuffle_on_notif">Shuffle is on</string>
+    <string name="unknown_album_name">Unknown album</string>
+    <string name="unknown_artist_name">Unknown artist</string>
+    <string name="uri_error">Enter a valid URI</string>
+    <string name="uri_hint">Enter a URI (http/mmsh/file/etc.)</string>
+    <string name="widget_one_track_info_unavailable">"No track info available"</string>
+    <!-- From: file:/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/src/main/res/values/styles.xml -->
+    <eat-comment/>
+    <style name="AppBaseTheme" parent="android:Theme.Light">
+        <!--
+            Theme customizations available in newer API levels can go in
+            res/values-vXX/styles.xml, while customizations related to
+            backward-compatibility can go here.
+        -->
+    </style>
+    <style name="AppTheme" parent="AppBaseTheme">
+        <!-- All customizations that are NOT specific to a particular API-level can go here. -->
+    </style>
+</resources>

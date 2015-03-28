@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- From: file:/Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-demo/demo/src/main/res/values-sw600dp/dimens.xml -->
+    <eat-comment/>
+    <dimen name="mini_controller_font_size_line1">15sp</dimen>
+    <dimen name="mini_controller_font_size_line2">13sp</dimen>
+    <dimen name="mini_controller_icon_height">70dp</dimen>
+    <dimen name="mini_controller_icon_width">124dp</dimen>
+</resources>
