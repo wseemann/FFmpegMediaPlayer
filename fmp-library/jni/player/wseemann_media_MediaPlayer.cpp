@@ -763,7 +763,7 @@ wseemann_media_FFmpegMediaPlayer_setMetadataFilter(JNIEnv *env, jobject thiz, jo
     return 0;
 }
 
-static jobject
+jobject
 wseemann_media_FFmpegMediaPlayer_getMetadata(JNIEnv *env, jobject thiz, jboolean update_only,
                                       jboolean apply_filter, jobject reply)
 {
