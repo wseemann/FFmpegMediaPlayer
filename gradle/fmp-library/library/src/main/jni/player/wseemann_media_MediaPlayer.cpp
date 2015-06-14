@@ -311,34 +311,35 @@ static MediaPlayer* setMediaPlayer(JNIEnv* env, jobject thiz, int mp)
     return old;
 }
 
+// if opStatus is INVALID_OPERATION throw IllegalStateException.
+// if opStatus is PERMISSION_DENIED throw SecurityException
 // If exception is NULL and opStatus is not OK, this method sends an error
 // event to the client application; otherwise, if exception is not NULL and
 // opStatus is not OK, this method throws the given exception to the client
 // application.
 static void process_media_player_call(JNIEnv *env, jobject thiz, int opStatus, const char* exception, const char *message)
 {
-    if (exception == NULL) {  // Don't throw exception. Instead, send an event.
-        if (opStatus != (int) OK) {
-            MediaPlayer* mp = getMediaPlayer(env, thiz);
-            if (mp != 0) mp->notify(MEDIA_ERROR, opStatus, 0, 0);
-        }
-    } else {  // Throw exception!
-        if ( opStatus == (int) INVALID_OPERATION ) {
-            jniThrowException(env, "java/lang/IllegalStateException", NULL);
-        } else if ( opStatus == (int) PERMISSION_DENIED ) {
-            jniThrowException(env, "java/lang/SecurityException", NULL);
-        } else if ( opStatus != (int) OK ) {
-            if (strlen(message) > 230) {
-               // if the message is too long, don't bother displaying the status code
-               jniThrowException( env, exception, message);
-            } else {
-               char msg[256];
-                // append the status code to the message
-               sprintf(msg, "%s: status=0x%X", message, opStatus);
-               jniThrowException( env, exception, msg);
-            }
-        }
-    }
+    // Throw exception!
+	if ( opStatus == (int) INVALID_OPERATION ) {
+		jniThrowException(env, "java/lang/IllegalStateException", NULL);
+	} else if ( opStatus == (int) PERMISSION_DENIED ) {
+		jniThrowException(env, "java/lang/SecurityException", NULL);
+	} else if ( opStatus != (int) OK ) {
+		if (exception == NULL) {  
+			// Don't throw exception. Instead, send an event.
+			MediaPlayer* mp = getMediaPlayer(env, thiz);
+			if (mp != 0) mp->notify(MEDIA_ERROR, opStatus, 0, 0);
+		} 
+		else if (strlen(message) > 230) {
+		   // if the message is too long, don't bother displaying the status code
+		   jniThrowException( env, exception, message);
+		} else {
+		   char msg[256];
+			// append the status code to the message
+		   sprintf(msg, "%s: status=0x%X", message, opStatus);
+		   jniThrowException( env, exception, msg);
+		}
+	}
 }
 
 static void
