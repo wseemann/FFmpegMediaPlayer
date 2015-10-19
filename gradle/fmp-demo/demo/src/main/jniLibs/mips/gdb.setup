@@ -1,3 +1,0 @@
-set solib-search-path /Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-library/library/src/main/obj/local/mips
-source /Users/seemann/Android/android-ndk-r10d/prebuilt/common/gdb/common.setup
-directory /Users/seemann/Android/android-ndk-r10d/platforms/android-9/arch-mips/usr/include /Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-library/library/src/main/jni/ffmpeg /Users/seemann/Android/android-ndk-r10d/sources/cxx-stl/system/include /Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-library/library/src/main/jni/ffmpeg/ffmpeg/mips/include /Users/seemann/Desktop/FFmpegMediaPlayer/gradle/fmp-library/library/src/main/jni/player

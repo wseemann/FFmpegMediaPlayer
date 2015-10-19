@@ -1,0 +1,14 @@
+prefix=/Users/wseemann/FFmpegMediaPlayer/gradle/fmp-library/library/src/main/ffmpeg/build/ffmpeg/armeabi
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: libavutil
+Description: FFmpeg utility library
+Version: 54.15.100
+Requires: 
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavutil 
+Libs.private: -lm
+Cflags: -I${includedir}

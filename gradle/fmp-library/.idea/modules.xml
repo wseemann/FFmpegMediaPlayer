@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/fmp-demo/fmp-demo.iml" filepath="$PROJECT_DIR$/fmp-demo/fmp-demo.iml" />
       <module fileurl="file://$PROJECT_DIR$/fmp-library.iml" filepath="$PROJECT_DIR$/fmp-library.iml" />
       <module fileurl="file://$PROJECT_DIR$/library/library.iml" filepath="$PROJECT_DIR$/library/library.iml" />
     </modules>
   </component>
 </project>
-

@@ -1,0 +1,70 @@
+***************
+*** 311,316 ****
+    --extra-ldexeflags=ELDFLAGS add ELDFLAGS to LDEXEFLAGS [$LDEXEFLAGS]
+    --extra-libs=ELIBS       add ELIBS [$ELIBS]
+    --extra-version=STRING   version string suffix []
+    --optflags=OPTFLAGS      override optimization-related compiler flags
+    --build-suffix=SUFFIX    library name suffix []
+    --enable-pic             build position-independent code
+--- 311,317 ----
+    --extra-ldexeflags=ELDFLAGS add ELDFLAGS to LDEXEFLAGS [$LDEXEFLAGS]
+    --extra-libs=ELIBS       add ELIBS [$ELIBS]
+    --extra-version=STRING   version string suffix []
++   --optimization-flags=FLAGS use FLAGS instead of the optimization flags chosen by other options []
+    --optflags=OPTFLAGS      override optimization-related compiler flags
+    --build-suffix=SUFFIX    library name suffix []
+    --enable-pic             build position-independent code
+***************
+*** 1941,1946 ****
+      logfile
+      malloc_prefix
+      nm
+      optflags
+      pkg_config
+      pkg_config_flags
+--- 1942,1948 ----
+      logfile
+      malloc_prefix
+      nm
++     optimization_flags
+      optflags
+      pkg_config
+      pkg_config_flags
+***************
+*** 2734,2740 ****
+  enable xlib
+  
+  # build settings
+- SHFLAGS='-shared -Wl,-soname,$$(@F)'
+  LIBPREF="lib"
+  LIBSUF=".a"
+  FULLNAME='$(NAME)$(BUILDSUF)'
+--- 2736,2742 ----
+  enable xlib
+  
+  # build settings
++ SHFLAGS='-shared -Wl,-soname,$$(SONAME_PREFIX)$$(@F)'
+  LIBPREF="lib"
+  LIBSUF=".a"
+  FULLNAME='$(NAME)$(BUILDSUF)'
+***************
+*** 5178,5183 ****
+  EOF
+  fi
+  
+  if [ -z "$optflags" ]; then
+      if enabled small; then
+          optflags=$cflags_size
+--- 5180,5191 ----
+  EOF
+  fi
+  
++ if test "$optimization_flags" != ""; then
++     size_cflags="$optimization_flags"
++     speed_cflags="$optimization_flags"
++     noopt_cflags="$optimization_flags"
++ fi
++ 
+  if [ -z "$optflags" ]; then
+      if enabled small; then
+          optflags=$cflags_size
