@@ -370,7 +370,7 @@ setVideoSurface(JNIEnv *env, jobject thiz, jobject jsurface, jboolean mediaPlaye
     ANativeWindow* theNativeWindow = ANativeWindow_fromSurface(env, jsurface);
     
     if (theNativeWindow != NULL) {
-        mp->setNativeWindow(theNativeWindow);
+        //mp->setNativeWindow(theNativeWindow);
     }
 }
 
@@ -804,7 +804,7 @@ static void wseemann_media_FFmpegMediaPlayer_attachAuxEffect(JNIEnv *env,  jobje
 static void
 wseemann_media_FFmpegMediaPlayer_setNextMediaPlayer(JNIEnv *env, jobject thiz, jobject java_player)
 {
-    __android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "setNextMediaPlayer");
+    /*__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "setNextMediaPlayer");
     MediaPlayer* thisplayer = getMediaPlayer(env, thiz);
     if (thisplayer == NULL) {
         jniThrowException(env, "java/lang/IllegalStateException", "This player not initialized");
@@ -825,7 +825,7 @@ wseemann_media_FFmpegMediaPlayer_setNextMediaPlayer(JNIEnv *env, jobject thiz, j
                               env, thiz, thisplayer->setNextMediaPlayer(nextplayer),
                               "java/lang/IllegalArgumentException",
                               "setNextMediaPlayer failed." );
-    ;
+    ;*/
 }
 
 // ----------------------------------------------------------------------------

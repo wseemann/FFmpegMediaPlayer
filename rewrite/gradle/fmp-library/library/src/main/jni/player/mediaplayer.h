@@ -22,8 +22,6 @@
 #include <Errors.h>
 #include <pthread.h>
 
-#include <android/native_window_jni.h>
-
 extern "C" {
     #include "ffmpeg_mediaplayer.h"
 }
@@ -97,7 +95,6 @@ public:
             status_t        setAuxEffectSendLevel(float level);
             int             attachAuxEffect(int effectId);
             status_t        setNextMediaPlayer(const MediaPlayer* player);
-            int             setNativeWindow(ANativeWindow* native_window);
 
     VideoState*                      state;
         

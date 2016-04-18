@@ -34,6 +34,7 @@
 
 #include <pthread.h>
 #include <audioplayer.h>
+#include <videoplayer.h>
 #include <unistd.h>
 #include <Errors.h>
 
@@ -87,6 +88,8 @@ typedef struct PacketQueue {
 typedef struct VideoPicture {
   // uncomment for video
   //SDL_Overlay *bmp;
+  void *bmp;
+  //int bmp_size;
   int width, height; /* source height & width */
   int allocated;
   double pts;
@@ -133,14 +136,16 @@ typedef struct VideoState {
   pthread_cond_t  *pictq_cond;
   pthread_t       *parse_tid;
   pthread_t       *video_tid;
+  pthread_t       *event_tid;
 
   char            filename[1024];
   int             quit;
 
   AVIOContext     *io_context;
   struct SwsContext *sws_ctx;
-  struct SwrContext *swr_ctx_audio;
+  struct SwrContext *sws_ctx_audio;
   struct AudioPlayer *audio_player;
+  struct VideoPlayer *video_player;
   void (*audio_callback) (void *userdata, uint8_t *stream, int len);
   int             prepared;
 
