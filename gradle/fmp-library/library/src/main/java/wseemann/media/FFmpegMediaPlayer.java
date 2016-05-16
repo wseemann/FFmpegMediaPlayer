@@ -21,6 +21,7 @@ package wseemann.media;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -499,13 +500,6 @@ import java.lang.reflect.Method;
 public class FFmpegMediaPlayer
 {
 	
-    private final int AVCODEC_MAX_AUDIO_FRAME_SIZE = 200000;
-    private final byte[] mAudioFrameBuffer = new byte[AVCODEC_MAX_AUDIO_FRAME_SIZE];
-    private final int[] mAudioFrameBufferDataLength = new int[1];
-    private List<byte []> mAudioBuffer = null;
-    private AudioTrack mAudioTrack = null;
-    private byte [] mBuffer = null;
-	
     /**
        Constant to retrieve only the new metadata since the last
        call.
@@ -608,7 +602,9 @@ public class FFmpegMediaPlayer
     }*/
     
 	private static final String [] JNI_LIBRARIES = {
-		"avutil",
+		"SDL2",
+        "avutil",
+        "swscale",
 		"swresample",
 		"avcodec",
 		"avformat",
@@ -619,9 +615,8 @@ public class FFmpegMediaPlayer
     	for (int i = 0; i < JNI_LIBRARIES.length; i++) {
     		System.loadLibrary(JNI_LIBRARIES[i]);
     	}
-    	
+
         native_init();
-        initializeStaticCompatMethods();
     }
     
     // Name of the remote interface for the media player. Must be kept
@@ -629,7 +624,7 @@ public class FFmpegMediaPlayer
     // macro invocation in IMediaPlayer.cpp
     private final static String IMEDIA_PLAYER = "wseemann.media.IMediaPlayer";
 
-    private int mNativeContext; // accessed by native methods
+    private long mNativeContext; // accessed by native methods
     private int mNativeSurfaceTexture;  // accessed by native methods
     private int mListenerContext; // accessed by native methods
     private SurfaceHolder mSurfaceHolder;
@@ -659,8 +654,7 @@ public class FFmpegMediaPlayer
         /* Native setup requires a weak reference to our object.
          * It's easier to create it here than in C++.
          */
-        mBuffer = new byte[200000];
-        native_setup(new WeakReference<FFmpegMediaPlayer>(this), mBuffer);
+        native_setup(new WeakReference<FFmpegMediaPlayer>(this));
     }
 
     /*
@@ -1040,9 +1034,6 @@ public class FFmpegMediaPlayer
      */
     public  void start() throws IllegalStateException {
         stayAwake(true);
-        if (mAudioTrack != null) {
-        	mAudioTrack.play();
-        }
         _start();
     }
 
@@ -1056,9 +1047,6 @@ public class FFmpegMediaPlayer
      */
     public void stop() throws IllegalStateException {
         stayAwake(false);
-        if (mAudioTrack != null) {
-            mAudioTrack.stop();
-        }
         _stop();
     }
 
@@ -1072,9 +1060,6 @@ public class FFmpegMediaPlayer
      */
     public void pause() throws IllegalStateException {
         stayAwake(false);
-        if (mAudioTrack != null) {
-        	mAudioTrack.pause();
-        } 
         _pause();
     }
 
@@ -1281,6 +1266,25 @@ public class FFmpegMediaPlayer
     }
 
     /**
+     * Set the MediaPlayer to start when this MediaPlayer finishes playback
+     * (i.e. reaches the end of the stream).
+     * The media framework will attempt to transition from this player to
+     * the next as seamlessly as possible. The next player can be set at
+     * any time before completion. The next player must be prepared by the
+     * app, and the application should not call start() on it.
+     * The next MediaPlayer must be different from 'this'. An exception
+     * will be thrown if next == this.
+     * The application may call setNextMediaPlayer(null) to indicate no
+     * next player should be started at the end of playback.
+     * If the current player is looping, it will keep looping and the next
+     * player will not be started.
+     *
+     * @param next the player to start after this one completes playback.
+     *
+     */
+    public native void setNextMediaPlayer(FFmpegMediaPlayer next);
+
+    /**
      * Releases resources associated with this MediaPlayer object.
      * It is considered good practice to call this method when you're
      * done using the MediaPlayer. For instance, whenever the Activity
@@ -1304,11 +1308,6 @@ public class FFmpegMediaPlayer
         mOnVideoSizeChangedListener = null;
         mOnTimedTextListener = null;
         _release();
-        
-        if (mAudioTrack != null) {
-        	mAudioTrack.release();
-        	mAudioTrack = null;
-        } 
     }
 
     private native void _release();
@@ -1321,11 +1320,6 @@ public class FFmpegMediaPlayer
     public void reset() {
         stayAwake(false);
         _reset();
-        
-        if (mAudioTrack != null) {
-        	mAudioTrack.release();
-        	mAudioTrack = null;
-        } 
         
         // make sure none of the listeners get called anymore
         mEventHandler.removeCallbacksAndMessages(null);
@@ -1584,7 +1578,7 @@ public class FFmpegMediaPlayer
     private native final int native_setMetadataFilter(String [] allowed, String [] blocked);
 
     private static native final void native_init();
-    private native final void native_setup(Object mediaplayer_this, byte [] buffer);
+    private native final void native_setup(Object mediaplayer_this);
     private native final void native_finalize();
 
     /**
@@ -2069,175 +2063,10 @@ public class FFmpegMediaPlayer
     }
 
     private OnInfoListener mOnInfoListener;
-
-    private static Method sMethodRegisterAttachAuxEffect;
-    private static Constructor<AudioTrack> sConstructorRegisterSetAudioSessionId;
-    private static Method sMethodRegisterGetAudioSessionId;
-    private static Method sMethodRegisterSetAuxEffectSendLevel;
-	
-    private static void initializeStaticCompatMethods() {
-        try {
-        	sMethodRegisterAttachAuxEffect = AudioTrack.class.getMethod(
-                    "attachAuxEffect", int.class);
-        	sConstructorRegisterSetAudioSessionId = AudioTrack.class.getConstructor(
-        			int.class, int.class, int.class, int.class, int.class, int.class, int.class);
-        	sMethodRegisterGetAudioSessionId = AudioTrack.class.getMethod(
-                    "getAudioSessionId");
-        	sMethodRegisterSetAuxEffectSendLevel = AudioTrack.class.getMethod(
-                    "setAuxEffectSendLevel", float.class);
-        } catch (NoSuchMethodException e) {
-        	e.printStackTrace();
-            // Silently fail when running on an OS before API level 9.
-        }
-    }
     
     private int attachAuxEffectCompat(int effectId) {
     	int ret = -3;
-    	
-		if (sMethodRegisterAttachAuxEffect == null || mAudioTrack == null) {
-			return ret;
-		}
-
-        try {
-        	ret = (Integer) sMethodRegisterAttachAuxEffect.invoke(mAudioTrack, effectId);
-        } catch (InvocationTargetException e) {
-            // Unpack original exception when possible
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else {
-                // Unexpected checked exception; wrap and re-throw
-                throw new RuntimeException(e);
-            }
-        } catch (IllegalAccessException e) {
-            Log.e(TAG, "IllegalAccessException invoking attachAuxEffect.");
-            e.printStackTrace();
-        }
         
         return ret;
-    }
-    
-    private AudioTrack setAudioSessionIdCompat(int streamType, int sampleRateInHz, int channelConfig, int audioFormat, int bufferSizeInBytes, int mode, int sessionId) {
-		if (sConstructorRegisterSetAudioSessionId == null) {
-            return new AudioTrack(streamType, sampleRateInHz, channelConfig,
-            		audioFormat, bufferSizeInBytes, mode);
-		}
-
-        try {
-        	return sConstructorRegisterSetAudioSessionId.newInstance(streamType, sampleRateInHz, channelConfig, audioFormat, bufferSizeInBytes, mode, sessionId);
-        } catch (InvocationTargetException e) {
-            // Unpack original exception when possible
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else {
-                // Unexpected checked exception; wrap and re-throw
-                throw new RuntimeException(e);
-            }
-        } catch (IllegalAccessException e) {
-            Log.e(TAG, "IllegalAccessException while instantiating AudioTrack.");
-            e.printStackTrace();
-		} catch (InstantiationException e) {
-			Log.e(TAG, "InstantiationException while instantiating AudioTrack.");
-			e.printStackTrace();
-		}
-        
-        return new AudioTrack(streamType, sampleRateInHz, channelConfig,
-        		audioFormat, bufferSizeInBytes, mode);
-    }
-    
-	private int getAudioSessionIdCompat(AudioTrack audioTrack) {
-        int audioSessionId = 0;
-		
-		if (sMethodRegisterGetAudioSessionId == null) {
-            return audioSessionId;
-		}
-
-        try {
-        	audioSessionId = (Integer) sMethodRegisterGetAudioSessionId.invoke(audioTrack);
-        } catch (InvocationTargetException e) {
-            // Unpack original exception when possible
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else {
-                // Unexpected checked exception; wrap and re-throw
-                throw new RuntimeException(e);
-            }
-        } catch (IllegalAccessException e) {
-            Log.e(TAG, "IllegalAccessException invoking getAudioSessionId.");
-            e.printStackTrace();
-        }
-        
-        return audioSessionId;
-    }
-    
-    private int setAuxEffectSendLevelCompat(float level) {
-		int ret = -3;
-    	
-    	if (sMethodRegisterSetAuxEffectSendLevel == null || mAudioTrack == null) {
-            return ret;
-		}
-
-        try {
-        	ret = (Integer) sMethodRegisterSetAuxEffectSendLevel.invoke(mAudioTrack, level);
-        } catch (InvocationTargetException e) {
-            // Unpack original exception when possible
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else {
-                // Unexpected checked exception; wrap and re-throw
-                throw new RuntimeException(e);
-            }
-        } catch (IllegalAccessException e) {
-            Log.e(TAG, "IllegalAccessException invoking setAuxEffectSendLevel.");
-            e.printStackTrace();
-        }
-        
-        return ret;
-    }
-	
-    private int initAudioTrack(int streamType, int sampleRateInHz, int channelConfig, int sessionId) {
-        channelConfig = (channelConfig == 1) ? AudioFormat.CHANNEL_OUT_MONO :
-        AudioFormat.CHANNEL_OUT_STEREO;
-        
-        int minBufferSize = AudioTrack.getMinBufferSize(sampleRateInHz, channelConfig, AudioFormat.ENCODING_PCM_16BIT) * 4;
-        
-        Log.i(TAG, "Minimum buffer size set to: " + minBufferSize);
-        
-        if (sessionId != 0) {
-        	mAudioTrack = setAudioSessionIdCompat(streamType, sampleRateInHz, channelConfig,
-        			AudioFormat.ENCODING_PCM_16BIT, minBufferSize, AudioTrack.MODE_STREAM, sessionId);
-        } else {
-        	mAudioTrack = new AudioTrack(streamType, sampleRateInHz, channelConfig,
-        			AudioFormat.ENCODING_PCM_16BIT, minBufferSize, AudioTrack.MODE_STREAM);
-        }
-        
-        return minBufferSize;
-    }
-    
-    private void writeAudio(int frame_size_ptr) {
-    	if (mBuffer != null && mBuffer.length > 0) {
-    		mAudioTrack.write(mBuffer, 0, frame_size_ptr);
-    	}
-    }
-    
-    private int _setVolume(float leftVolume, float rightVolume) {
-		int ret = -3;
-    	
-    	if (mAudioTrack != null) {
-    		ret = mAudioTrack.setStereoVolume(leftVolume, rightVolume);
-    	}
-    	
-    	return ret;
     }
 }

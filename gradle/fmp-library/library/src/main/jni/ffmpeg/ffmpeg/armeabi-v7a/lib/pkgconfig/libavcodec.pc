@@ -1,0 +1,14 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=/Users/wseemann/FFmpegMediaPlayer/rewrite/gradle/fmp-library/library/src/main/ffmpeg/ffmpeg-android/armv7-a/lib
+includedir=/Users/wseemann/FFmpegMediaPlayer/rewrite/gradle/fmp-library/library/src/main/ffmpeg/ffmpeg-android/armv7-a/include
+
+Name: libavcodec
+Description: FFmpeg codec library
+Version: 56.60.100
+Requires: 
+Requires.private: libswresample >= 1.2.101, libavutil >= 54.31.100
+Conflicts:
+Libs: -L${libdir}  -lavcodec 
+Libs.private: -lm -lz -pthread -lgcc
+Cflags: -I${includedir}

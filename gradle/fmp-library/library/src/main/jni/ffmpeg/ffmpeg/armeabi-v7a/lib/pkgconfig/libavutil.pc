@@ -1,0 +1,14 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=/Users/wseemann/FFmpegMediaPlayer/rewrite/gradle/fmp-library/library/src/main/ffmpeg/ffmpeg-android/armv7-a/lib
+includedir=/Users/wseemann/FFmpegMediaPlayer/rewrite/gradle/fmp-library/library/src/main/ffmpeg/ffmpeg-android/armv7-a/include
+
+Name: libavutil
+Description: FFmpeg utility library
+Version: 54.31.100
+Requires: 
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavutil 
+Libs.private: -lm
+Cflags: -I${includedir}

@@ -1,7 +1,7 @@
 /*
  * FFmpegMediaPlayer: A unified interface for playing audio files and streams.
  *
- * Copyright 2014 William Seemann
+ * Copyright 2016 William Seemann
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,6 @@
 
 #include <sys/types.h>
 #include <errno.h>
-
-using namespace std;
 
 // use this type to return error codes
 #ifdef HAVE_MS_C_RUNTIME

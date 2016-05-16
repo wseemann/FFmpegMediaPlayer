@@ -1,7 +1,7 @@
 /*
  * FFmpegMediaPlayer: A unified interface for playing audio files and streams.
  *
- * Copyright 2014 William Seemann
+ * Copyright 2016 William Seemann
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,320 +16,196 @@
  * limitations under the License.
  */
 
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/opt.h>
-#include <libswresample/swresample.h>
-#include <libswscale/swscale.h>
+// uncomment for video
+
+//#include <android/log.h>
 #include <ffmpeg_mediaplayer.h>
-#include <android/log.h>
 
-#include <stdio.h>
+const int TARGET_IMAGE_FORMAT = AV_PIX_FMT_RGBA; //AV_PIX_FMT_RGB24;
+const int TARGET_IMAGE_CODEC = AV_CODEC_ID_PNG;
 
-const char *DURATION = "duration";
-const char *AUDIO_CODEC = "audio_codec";
-const char *VIDEO_CODEC = "video_codec";
-const char *ICY_METADATA = "icy_metadata";
-//const char *ICY_ARTIST = "icy_artist";
-//const char *ICY_TITLE = "icy_title";
-const char *ROTATE = "rotate";
-const char *FRAMERATE = "framerate";
+void convert_image(VideoState *state, AVCodecContext *pCodecCtx, AVFrame *pFrame, AVPacket *avpkt, int *got_packet_ptr, int width, int height);
 
-const int SUCCESS = 0;
-const int FAILURE = -1;
-
-static pthread_mutex_t *lock;
-
-int decode_interrupt_cb(void *opaque) {
-	State *state = (State *) opaque;
-	 
-    return (state && state->abort_request);
+void packet_queue_init(PacketQueue *q) {
+  memset(q, 0, sizeof(PacketQueue));
+  q->initialized = 1;
+  q->mutex = SDL_CreateMutex();
+  q->cond = SDL_CreateCond();
 }
+int packet_queue_put(VideoState *is, PacketQueue *q, AVPacket *pkt) {
 
-void clear_l(State **ps)
+  AVPacketList *pkt1;
+  if(pkt != &is->flush_pkt && av_dup_packet(pkt) < 0) {
+    return -1;
+  }
+  pkt1 = av_malloc(sizeof(AVPacketList));
+  if (!pkt1)
+    return -1;
+  pkt1->pkt = *pkt;
+  pkt1->next = NULL;
+
+  SDL_LockMutex(q->mutex);
+
+  if (!q->last_pkt)
+    q->first_pkt = pkt1;
+  else
+    q->last_pkt->next = pkt1;
+  q->last_pkt = pkt1;
+  q->nb_packets++;
+  q->size += pkt1->pkt.size;
+  SDL_CondSignal(q->cond);
+
+  SDL_UnlockMutex(q->mutex);
+  return 0;
+}
+static int packet_queue_get(VideoState *is, PacketQueue *q, AVPacket *pkt, int block)
 {
-	State *state = *ps;
-	        
-	if (state) {
-		if (state->pFormatCtx) {
-			avformat_close_input(&state->pFormatCtx);
+  AVPacketList *pkt1;
+  int ret;
+
+  SDL_LockMutex(q->mutex);
+
+  for(;;) {
+
+    if(is->quit) {
+      ret = -1;
+      break;
+    }
+
+    pkt1 = q->first_pkt;
+    if (pkt1) {
+      q->first_pkt = pkt1->next;
+      if (!q->first_pkt)
+	q->last_pkt = NULL;
+      q->nb_packets--;
+      q->size -= pkt1->pkt.size;
+      *pkt = pkt1->pkt;
+      av_free(pkt1);
+      ret = 1;
+      break;
+    } else if (!block) {
+      ret = 0;
+      break;
+    } else {
+      SDL_CondWait(q->cond, q->mutex);
+    }
+  }
+  SDL_UnlockMutex(q->mutex);
+  return ret;
+}
+static void packet_queue_flush(PacketQueue *q) {
+  AVPacketList *pkt, *pkt1;
+
+  SDL_LockMutex(q->mutex);
+  for(pkt = q->first_pkt; pkt != NULL; pkt = pkt1) {
+    pkt1 = pkt->next;
+    av_free_packet(&pkt->pkt);
+    av_freep(&pkt);
+  }
+  q->last_pkt = NULL;
+  q->first_pkt = NULL;
+  q->nb_packets = 0;
+  q->size = 0;
+  SDL_UnlockMutex(q->mutex);
+}
+double get_audio_clock(VideoState *is) {
+  double pts;
+  int hw_buf_size, bytes_per_sec, n;
+
+  pts = is->audio_clock; /* maintained in the audio thread */
+  hw_buf_size = is->audio_buf_size - is->audio_buf_index;
+  bytes_per_sec = 0;
+  n = is->audio_st->codec->channels * 2;
+  if(is->audio_st) {
+    bytes_per_sec = is->audio_st->codec->sample_rate * n;
+  }
+  if(bytes_per_sec) {
+    pts -= (double)hw_buf_size / bytes_per_sec;
+  }
+  return pts;
+}
+double get_video_clock(VideoState *is) {
+  double delta;
+
+  delta = (av_gettime() - is->video_current_pts_time) / 1000000.0;
+  return is->video_current_pts + delta;
+}
+double get_external_clock(VideoState *is) {
+  return av_gettime() / 1000000.0;
+}
+double get_master_clock(VideoState *is) {
+  if(is->av_sync_type == AV_SYNC_VIDEO_MASTER) {
+    return get_video_clock(is);
+  } else if(is->av_sync_type == AV_SYNC_AUDIO_MASTER) {
+    return get_audio_clock(is);
+  } else {
+    return get_external_clock(is);
+  }
+}
+/* Add or subtract samples to get a better sync, return new
+   audio buffer size */
+int synchronize_audio(VideoState *is, short *samples,
+		      int samples_size, double pts) {
+  int n;
+  double ref_clock;
+
+  n = 2 * is->audio_st->codec->channels;
+
+  if(is->av_sync_type != AV_SYNC_AUDIO_MASTER) {
+    double diff, avg_diff;
+    int wanted_size, min_size, max_size /*, nb_samples */;
+
+    ref_clock = get_master_clock(is);
+    diff = get_audio_clock(is) - ref_clock;
+
+    if(diff < AV_NOSYNC_THRESHOLD) {
+      // accumulate the diffs
+      is->audio_diff_cum = diff + is->audio_diff_avg_coef
+	* is->audio_diff_cum;
+      if(is->audio_diff_avg_count < AUDIO_DIFF_AVG_NB) {
+	is->audio_diff_avg_count++;
+      } else {
+	avg_diff = is->audio_diff_cum * (1.0 - is->audio_diff_avg_coef);
+	if(fabs(avg_diff) >= is->audio_diff_threshold) {
+	  wanted_size = samples_size + ((int)(diff * is->audio_st->codec->sample_rate) * n);
+	  min_size = samples_size * ((100 - SAMPLE_CORRECTION_PERCENT_MAX) / 100);
+	  max_size = samples_size * ((100 + SAMPLE_CORRECTION_PERCENT_MAX) / 100);
+	  if(wanted_size < min_size) {
+	    wanted_size = min_size;
+	  } else if (wanted_size > max_size) {
+	    wanted_size = max_size;
+	  }
+	  if(wanted_size < samples_size) {
+	    /* remove samples */
+	    samples_size = wanted_size;
+	  } else if(wanted_size > samples_size) {
+	    uint8_t *samples_end, *q;
+	    int nb;
+
+	    /* add samples by copying final sample*/
+	    nb = (samples_size - wanted_size);
+	    samples_end = (uint8_t *)samples + samples_size - n;
+	    q = samples_end + n;
+	    while(nb > 0) {
+	      memcpy(q, samples_end, n);
+	      q += n;
+	      nb -= n;
 	    }
+	    samples_size = wanted_size;
+	  }
 	}
-	
-	if (state && state->fd != -1) {
-		close(state->fd);
-	}
-	
-    //if (!state) {
-        state = av_mallocz(sizeof(State));
-    //}
-    
-	state->pFormatCtx = NULL;
-	state->audio_stream = -1;
-	state->video_stream = -1;
-	state->audio_st = NULL;
-	state->video_st = NULL;
-	state->buffer_size = -1;
-	state->abort_request = 0;
-	state->paused = 0;
-	state->last_paused = -1;
-	state->filename[0] = '\0';
-	state->headers[0] = '\0';
-	state->fd = -1;
-	state->offset = 0;
-	state->player_started = 0;
-    
-    *ps = state;
-}
-
-void disconnect(State **ps)
-{
-	State *state = *ps;
-	        
-	if (state) {
-		if (state->pFormatCtx) {
-			avformat_close_input(&state->pFormatCtx);
-	    }
-	           
-		if (state && state->fd != -1) {
-			close(state->fd);
-		}
-		
-	    av_freep(&state);
-	    *ps = NULL;
-	}
-}
-
-int setNotifyListener(State **ps, void* clazz, void (*listener) (void*, int, int, int, int))
-{
-    State *state = *ps;
-    state->clazz = clazz;
-    state->notify_callback = listener;
-    return SUCCESS;
-}
-
-int setInitAudioTrackListener(State **ps, void* clazz, int (*listener) (void*, int, int, int))
-{
-    State *state = *ps;
-    state->clazz = clazz;
-    state->init_audio_track_callback = listener;
-    return SUCCESS;
-}
-
-int setWriteAudioListener(State **ps, void* clazz, void (*listener) (void*, int16_t *, int, int))
-{
-    State *state = *ps;
-    state->clazz = clazz;
-    state->write_audio_callback = listener;
-    return SUCCESS;
-}
-
-int setDataSourceURI(State **ps, const char *url, const char *headers)
-{
-    printf("setDataSource\n");
-
-    if (!url) {
-    	return FAILURE;
+      }
+    } else {
+      /* difference is TOO big; reset diff stuff */
+      is->audio_diff_avg_count = 0;
+      is->audio_diff_cum = 0;
     }
-
-    State *state = *ps;
-
-    // Workaround for FFmpeg ticket #998
-    // "must convert mms://... streams to mmsh://... for FFmpeg to work"
-    char *restrict_to = strstr(url, "mms://");
-    if (restrict_to) {
-    	strncpy(restrict_to, "mmsh://", 6);
-    	puts(url);
-    }
-
-    strncpy(state->filename, url, sizeof(state->filename));
-
-    if (headers) {
-        strncpy(state->headers, headers, sizeof(state->headers));
-    }
-    
-    return SUCCESS;
+  }
+  return samples_size;
 }
 
-int setDataSourceFD(State **ps, int fd, int64_t offset, int64_t length) {
-	printf("setDataSource\n");
-	
-	State *state = *ps;
-	
-    int myfd = dup(fd);
-
-    char str[20];
-    sprintf(str, "pipe:%d", myfd);
-    strncpy(state->filename, str, sizeof(state->filename));
-    
-    state->fd = myfd;
-    state->offset = offset;
-    
-	*ps = state;
-
-	return SUCCESS;
-}
-
-int setMetadataFilter(State **ps, char *allow[], char *block[])
+int decode_frame_from_packet(VideoState *is, AVFrame decoded_frame)
 {
-    State *state = *ps;
-	
-    __android_log_print(ANDROID_LOG_INFO, "TAG", "Allow %s \n", allow[0]);
-    __android_log_print(ANDROID_LOG_INFO, "TAG", "Block %s \n", block[0]);
-    
-    //state->allow = allow;
-    //state->block = block;
-    
-	return SUCCESS;
-}
-
-void get_shoutcast_metadata(AVFormatContext *ic) {
-    char *value = NULL;
-    
-    if (av_opt_get(ic, "icy_metadata_packet", 1, (uint8_t **) &value) < 0) {
-        value = NULL;
-    }
-	
-    if (value && value[0]) {
-    	av_dict_set(&ic->metadata, ICY_METADATA, value, 0);
-    	
-    	/*int first_pos = first_char_pos(value, '\'');
-        int last_pos = first_char_pos(value, ';') - 2;
-        int pos = last_pos - first_pos;
-        
-        if (pos == 0) {
-        	return;
-        }
-        
-        char temp[pos];
-        memcpy(temp, value + first_pos + 1 , pos);
-        temp[pos] = '\0';
-        value = temp;
-
-    	first_pos = first_char_pos(value, '-') - 1;
-        
-        char artist[first_pos];
-        memcpy(artist, value, first_pos);
-        artist[first_pos] = '\0';
-        
-		av_dict_set(&ic->metadata, ICY_ARTIST, artist, 0);
-        
-        pos = strlen(value) - first_char_pos(value, '-') + 2;
-         
-        char album[pos];
-        memcpy(album, value + first_char_pos(value, '-') + 2, pos);
-        album[pos] = '\0';
-        
-		av_dict_set(&ic->metadata, ICY_TITLE, album, 0);*/
-    }
-}
-
-void get_duration(AVFormatContext *ic, char * value) {
-	int duration = 0;
-
-	if (ic) {
-		if (ic->duration != AV_NOPTS_VALUE) {
-			duration = ((ic->duration / AV_TIME_BASE) * 1000);
-		}
-	}
-
-	sprintf(value, "%d", duration); // %i
-}
-
-void set_codec(AVFormatContext *ic, int i) {
-    const char *codec_type = av_get_media_type_string(ic->streams[i]->codec->codec_type);
-
-	if (!codec_type) {
-		return;
-	}
-
-    const char *codec_name = avcodec_get_name(ic->streams[i]->codec->codec_id);
-
-	if (strcmp(codec_type, "audio") == 0) {
-		av_dict_set(&ic->metadata, AUDIO_CODEC, codec_name, 0);
-    } else if (codec_type && strcmp(codec_type, "video") == 0) {
-	   	av_dict_set(&ic->metadata, VIDEO_CODEC, codec_name, 0);
-	}
-}
-
-void set_rotation(State *s) {
-    
-	if (!extract_metadata(&s, ROTATE) && s->video_st && s->video_st->metadata) {
-		AVDictionaryEntry *entry = av_dict_get(s->video_st->metadata, ROTATE, NULL, AV_DICT_IGNORE_SUFFIX);
-        
-        if (entry && entry->value) {
-            av_dict_set(&s->pFormatCtx->metadata, ROTATE, entry->value, 0);
-        }
-	}
-}
-
-void set_framerate(State *s) {
-	char value[30] = "0";
-	
-	if (s->video_st && s->video_st->avg_frame_rate.den && s->video_st->avg_frame_rate.num) {
-		double d = av_q2d(s->video_st->avg_frame_rate);
-		uint64_t v = lrintf(d * 100);
-		if (v % 100) {
-			sprintf(value, "%3.2f", d);
-		} else if (v % (100 * 1000)) {
-			sprintf(value,  "%1.0f", d);
-		} else {
-			sprintf(value, "%1.0fk", d / 1000);
-		}
-		
-	    av_dict_set(&s->pFormatCtx->metadata, FRAMERATE, value, 0);
-	}
-}
-
-const char* extract_metadata(State **ps, const char* key) {
-	printf("extract_metadata\n");
-    char* value = NULL;
-	
-	State *state = *ps;
-    
-	if (!state || !state->pFormatCtx) {
-		return value;
-	}
-
-	if (key) {
-		if (av_dict_get(state->pFormatCtx->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)) {
-			value = av_dict_get(state->pFormatCtx->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)->value;
-		} else if (state->audio_st && av_dict_get(state->audio_st->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)) {
-			value = av_dict_get(state->audio_st->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)->value;
-		} else if (state->video_st && av_dict_get(state->video_st->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)) {
-			value = av_dict_get(state->video_st->metadata, key, NULL, AV_DICT_IGNORE_SUFFIX)->value;
-		}
-	}
-
-	return value;
-}
-
-int getMetadata(State **ps, AVDictionary **metadata) {
-    State *state = *ps;
-    
-    if (!state || !state->pFormatCtx) {
-        return FAILURE;
-    }
-    
-    get_shoutcast_metadata(state->pFormatCtx);
-    av_dict_copy(metadata, state->pFormatCtx->metadata, 0);
-    
-    return SUCCESS;
-}
-
-/*int setVideoSurface(const sp<Surface>& surface)
-{
-    return 0;
-}*/
-
-int decode_frame_from_packet(State *state, AVPacket *aPacket, int *frame_size_ptr, int from_thread)
-{
-	int n;
-	int16_t *samples;
-	AVPacket *pkt = aPacket;
-    AVFrame *decoded_frame = NULL;
-    int got_frame = 0;
-    
 	int64_t src_ch_layout, dst_ch_layout;
 	int src_rate, dst_rate;
 	uint8_t **src_data = NULL, **dst_data = NULL;
@@ -338,574 +214,1631 @@ int decode_frame_from_packet(State *state, AVPacket *aPacket, int *frame_size_pt
 	int src_nb_samples, dst_nb_samples, max_dst_nb_samples;
 	enum AVSampleFormat src_sample_fmt, dst_sample_fmt;
 	int dst_bufsize;
-	const char *fmt;
-	struct SwrContext *swr_ctx;
-	double t;
-    int ret;
-
-    if (aPacket->stream_index == state->audio_stream) {
-        	
-    	if (!decoded_frame) {
-    		if (!(decoded_frame = avcodec_alloc_frame())) {
-    			__android_log_print(ANDROID_LOG_INFO, "TAG", "Could not allocate audio frame\n");
-    	        return -2;
-    		}
-    	}
-    	
-    	if (avcodec_decode_audio4(state->audio_st->codec, decoded_frame, &got_frame, aPacket) < 0) {
-    		__android_log_print(ANDROID_LOG_ERROR, "TAG", "avcodec_decode_audio4() decoded no frame");
-    		return -2;
-    	}
-    	
-    	int data_size = 0;
-    	
-    	if (got_frame) {
-    		/* if a frame has been decoded, output it */
-    		data_size = av_samples_get_buffer_size(NULL, state->audio_st->codec->channels,
-    	    		decoded_frame->nb_samples,
-    	    		state->audio_st->codec->sample_fmt, 1);
-    	} else {
-    		*frame_size_ptr = 0;
-    	    return 0;
-    	}
-    	
-        if (decoded_frame->format != AV_SAMPLE_FMT_S16) {
-            src_nb_samples = decoded_frame->nb_samples;
-            src_linesize = (int) decoded_frame->linesize;
-            src_data = decoded_frame->data;
-            
-            if (decoded_frame->channel_layout == 0) {
-            	decoded_frame->channel_layout = av_get_default_channel_layout(decoded_frame->channels);
-            }
-            
-            /* create resampler context */
-            swr_ctx = swr_alloc();
-            if (!swr_ctx) {
-            	//fprintf(stderr, "Could not allocate resampler context\n");
-                //ret = AVERROR(ENOMEM);
-                //goto end;
-            }
-            
-            src_rate = decoded_frame->sample_rate;
-            dst_rate = decoded_frame->sample_rate;
-            src_ch_layout = decoded_frame->channel_layout;
-            dst_ch_layout = decoded_frame->channel_layout;
-            src_sample_fmt = decoded_frame->format;
-            dst_sample_fmt = AV_SAMPLE_FMT_S16;
-            
-            av_opt_set_int(swr_ctx, "in_channel_layout", src_ch_layout, 0);
-            av_opt_set_int(swr_ctx, "out_channel_layout", dst_ch_layout,  0);
-            av_opt_set_int(swr_ctx, "in_sample_rate", src_rate, 0);
-            av_opt_set_int(swr_ctx, "out_sample_rate", dst_rate, 0);
-            av_opt_set_sample_fmt(swr_ctx, "in_sample_fmt", src_sample_fmt, 0);
-            av_opt_set_sample_fmt(swr_ctx, "out_sample_fmt", dst_sample_fmt,  0);
-            
-            /* initialize the resampling context */
-            if ((ret = swr_init(swr_ctx)) < 0) {
-            	__android_log_print(ANDROID_LOG_INFO, "TAG", "Failed to initialize the resampling context\n");
-            	//goto end;
-            }
-
-            /* allocate source and destination samples buffers */
-
-            src_nb_channels = av_get_channel_layout_nb_channels(src_ch_layout);
-            ret = av_samples_alloc_array_and_samples(&src_data, &src_linesize, src_nb_channels,
-            		src_nb_samples, src_sample_fmt, 0);
-            if (ret < 0) {
-            	__android_log_print(ANDROID_LOG_INFO, "TAG", "Could not allocate source samples\n");
-            	//goto end;
-            }
-
-            /* compute the number of converted samples: buffering is avoided
-             * ensuring that the output buffer will contain at least all the
-             * converted input samples */
-            max_dst_nb_samples = dst_nb_samples =
-            	av_rescale_rnd(src_nb_samples, dst_rate, src_rate, AV_ROUND_UP);
-
-            /* buffer is going to be directly written to a rawaudio file, no alignment */
-            dst_nb_channels = av_get_channel_layout_nb_channels(dst_ch_layout);
-            ret = av_samples_alloc_array_and_samples(&dst_data, &dst_linesize, dst_nb_channels,
-            		dst_nb_samples, dst_sample_fmt, 0);
-            if (ret < 0) {
-            	__android_log_print(ANDROID_LOG_INFO, "TAG", "Could not allocate destination samples\n");
-            	//goto end;
-            }
-            
-            /* compute destination number of samples */
-            dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, src_rate) +
-                                            src_nb_samples, dst_rate, src_rate, AV_ROUND_UP);
-            
-            /* convert to destination format */
-            ret = swr_convert(swr_ctx, dst_data, dst_nb_samples, (const uint8_t **)decoded_frame->data, src_nb_samples);
-            if (ret < 0) {
-            	__android_log_print(ANDROID_LOG_INFO, "TAG", "Error while converting\n");
-                //goto end;
-            }
-            dst_bufsize = av_samples_get_buffer_size(&dst_linesize, dst_nb_channels,
-                                                     ret, dst_sample_fmt, 1);
-            if (dst_bufsize < 0) {
-                fprintf(stderr, "Could not get sample buffer size\n");
-                //goto end;
-            }
-            
-            samples = malloc(dst_bufsize);
-    		memcpy(samples, dst_data[0], dst_bufsize);
-    		data_size = dst_bufsize;
-
-    		if (src_data) {
-    			av_freep(&src_data[0]);
-    		}
-    		av_freep(&src_data);
-
-    		if (dst_data) {
-    			av_freep(&dst_data[0]);
-    		}
-    		av_freep(&dst_data);
-
-    		swr_free(&swr_ctx);
-    	} else {
-    		/* if a frame has been decoded, output it */
-    	    data_size = av_samples_get_buffer_size(NULL, state->audio_st->codec->channels,
-    	    		decoded_frame->nb_samples, state->audio_st->codec->sample_fmt, 1);
-    		samples = malloc(data_size);
-    		memcpy(samples, decoded_frame->data[0], data_size);
-    	}
-        
-        *frame_size_ptr = data_size;
-        
-        // TODO add this call back!
-        //*pts_ptr = pts;
-        n = 2 * state->audio_st->codec->channels;
-        state->audio_clock += (double)*frame_size_ptr /
-        		(double)(n * state->audio_st->codec->sample_rate);
-
-        /* if update, update the audio clock w/pts */
-        if(pkt->pts != AV_NOPTS_VALUE) {
-        	state->audio_clock = av_q2d(state->audio_st->time_base) * pkt->pts;
-        }
-    	
-        //*frame_size_ptr = data_size;
-        state->write_audio_callback(state->clazz, samples, data_size, from_thread);
-        
-    	avcodec_free_frame(&decoded_frame);
-        
-        free(samples);
-        
-    	return AUDIO_DATA_ID;
-    }
-
-    return 0;
-}
-
-void player_decode(void *data)
-{
-	State *state = (State *) data;
-	
 	int ret;
-	int eof = 0;
 
-	for (;;) {
+	src_nb_samples = decoded_frame.nb_samples;
+	src_linesize = (int) decoded_frame.linesize;
+	src_data = decoded_frame.data;
 
-		if (state->abort_request) {
-			break;
-		}
-
-        if (state->paused != state->last_paused) {
-        	state->last_paused = state->paused;
-            if (state->paused) {
-            	state->read_pause_return = av_read_pause(state->pFormatCtx);
-            } else {
-                av_read_play(state->pFormatCtx);
-            }
-        }
-
-        if (state->seek_req) {
-            int64_t seek_target = state->seek_pos;
-            int64_t seek_min = state->seek_rel > 0 ? seek_target - state->seek_rel + 2: INT64_MIN;
-            int64_t seek_max = state->seek_rel < 0 ? seek_target - state->seek_rel - 2: INT64_MAX;
-
-            ret = avformat_seek_file(state->pFormatCtx, -1, seek_min, seek_target, seek_max, state->seek_flags);
-            if (ret < 0) {
-                fprintf(stderr, "%s: error while seeking\n", state->pFormatCtx->filename);
-            } else {
-                if (state->audio_stream >= 0) {
-                	avcodec_flush_buffers(state->audio_st->codec);
-                }
-                state->notify_callback(state->clazz, MEDIA_SEEK_COMPLETE, 0, 0, FROM_THREAD);
-            }
-            state->seek_req = 0;
-            eof = 0;
-        }
-
-        if (state->paused) {
-        	goto sleep;
-        }
-
-		AVPacket packet;
-		memset(&packet, 0, sizeof(packet)); //make sure we can safely free it
-
-		int i;
-			
-		for (i = 0; i < state->pFormatCtx->nb_streams; ++i) {
-			//av_init_packet(&packet);
-			ret = av_read_frame(state->pFormatCtx, &packet);
-
-	        if (ret < 0) {
-	            if (ret == AVERROR_EOF || url_feof(state->pFormatCtx->pb)) {
-	                eof = 1;
-	                break;
-	            }
-	        }
-
-	        int frame_size_ptr;
-			ret = decode_frame_from_packet(state, &packet, &frame_size_ptr, FROM_THREAD);
-			av_free_packet(&packet);
-
-			if (ret != 0) { //an error or a frame decoded
-				// TODO add this bacl=k
-			}
-		}
-
-		if (eof) {
-			break;
-		}
-
-		sleep:
-		    usleep(100);
+	if (decoded_frame.channel_layout == 0) {
+		decoded_frame.channel_layout = av_get_default_channel_layout(decoded_frame.channels);
 	}
 
-	if (eof) {
-		state->notify_callback(state->clazz, MEDIA_PLAYBACK_COMPLETE, 0, 0, FROM_THREAD);
+	src_rate = decoded_frame.sample_rate;
+	dst_rate = decoded_frame.sample_rate;
+	src_ch_layout = decoded_frame.channel_layout;
+	dst_ch_layout = decoded_frame.channel_layout;
+	src_sample_fmt = decoded_frame.format;
+	dst_sample_fmt = AV_SAMPLE_FMT_S16;
+
+	av_opt_set_int(is->sws_ctx_audio, "in_channel_layout", src_ch_layout, 0);
+	av_opt_set_int(is->sws_ctx_audio, "out_channel_layout", dst_ch_layout,  0);
+	av_opt_set_int(is->sws_ctx_audio, "in_sample_rate", src_rate, 0);
+	av_opt_set_int(is->sws_ctx_audio, "out_sample_rate", dst_rate, 0);
+	av_opt_set_sample_fmt(is->sws_ctx_audio, "in_sample_fmt", src_sample_fmt, 0);
+	av_opt_set_sample_fmt(is->sws_ctx_audio, "out_sample_fmt", dst_sample_fmt,  0);
+
+	/* initialize the resampling context */
+	if ((ret = swr_init(is->sws_ctx_audio)) < 0) {
+		fprintf(stderr, "Failed to initialize the resampling context\n");
+		return -1;
 	}
+
+	/* allocate source and destination samples buffers */
+	src_nb_channels = av_get_channel_layout_nb_channels(src_ch_layout);
+	ret = av_samples_alloc_array_and_samples(&src_data, &src_linesize, src_nb_channels, src_nb_samples, src_sample_fmt, 0);
+	if (ret < 0) {
+		fprintf(stderr, "Could not allocate source samples\n");
+		return -1;
+	}
+
+	/* compute the number of converted samples: buffering is avoided
+	 * ensuring that the output buffer will contain at least all the
+	 * converted input samples */
+	max_dst_nb_samples = dst_nb_samples = av_rescale_rnd(src_nb_samples, dst_rate, src_rate, AV_ROUND_UP);
+
+	/* buffer is going to be directly written to a rawaudio file, no alignment */
+	dst_nb_channels = av_get_channel_layout_nb_channels(dst_ch_layout);
+	ret = av_samples_alloc_array_and_samples(&dst_data, &dst_linesize, dst_nb_channels, dst_nb_samples, dst_sample_fmt, 0);
+	if (ret < 0) {
+		fprintf(stderr, "Could not allocate destination samples\n");
+		return -1;
+	}
+
+	/* compute destination number of samples */
+	dst_nb_samples = av_rescale_rnd(swr_get_delay(is->sws_ctx_audio, src_rate) + src_nb_samples, dst_rate, src_rate, AV_ROUND_UP);
+
+	/* convert to destination format */
+	ret = swr_convert(is->sws_ctx_audio, dst_data, dst_nb_samples, (const uint8_t **)decoded_frame.data, src_nb_samples);
+	if (ret < 0) {
+		fprintf(stderr, "Error while converting\n");
+		return -1;
+	}
+
+	dst_bufsize = av_samples_get_buffer_size(&dst_linesize, dst_nb_channels, ret, dst_sample_fmt, 1);
+	if (dst_bufsize < 0) {
+		fprintf(stderr, "Could not get sample buffer size\n");
+		return -1;
+	}
+
+	memcpy(is->audio_buf, dst_data[0], dst_bufsize);
+
+	if (src_data) {
+		av_freep(&src_data[0]);
+	}
+	av_freep(&src_data);
+
+	if (dst_data) {
+		av_freep(&dst_data[0]);
+	}
+	av_freep(&dst_data);
+
+	return dst_bufsize;
 }
 
-int stream_component_open(State *s, int stream_index, int from_thread)
-{
-	AVFormatContext *pFormatCtx = s->pFormatCtx;
+int audio_decode_frame(VideoState *is, double *pts_ptr) {
+
+  int len1, data_size = 0, n;
+  AVPacket *pkt = &is->audio_pkt;
+  double pts;
+
+  for(;;) {
+    while(is->audio_pkt_size > 0) {
+      int got_frame = 0;
+      len1 = avcodec_decode_audio4(is->audio_st->codec, &is->audio_frame, &got_frame, pkt);
+      if(len1 < 0) {
+	/* if error, skip frame */
+	is->audio_pkt_size = 0;
+	break;
+      }
+      if (got_frame)
+      {
+    	  if (is->audio_frame.format != AV_SAMPLE_FMT_S16) {
+    		  data_size = decode_frame_from_packet(is, is->audio_frame);
+    	  } else {
+            data_size =
+              av_samples_get_buffer_size
+              (
+                  NULL,
+                  is->audio_st->codec->channels,
+                  is->audio_frame.nb_samples,
+                  is->audio_st->codec->sample_fmt,
+                  1
+              );
+            memcpy(is->audio_buf, is->audio_frame.data[0], data_size);
+    	  }
+      }
+      is->audio_pkt_data += len1;
+      is->audio_pkt_size -= len1;
+      if(data_size <= 0) {
+	/* No data yet, get more frames */
+	continue;
+      }
+      pts = is->audio_clock;
+      *pts_ptr = pts;
+      n = 2 * is->audio_st->codec->channels;
+      is->audio_clock += (double)data_size /
+	(double)(n * is->audio_st->codec->sample_rate);
+
+      /* We have data, return it and come back for more later */
+      return data_size;
+    }
+    if(pkt->data)
+      av_free_packet(pkt);
+
+    if(is->quit) {
+      return -1;
+    }
+    /* next packet */
+    if(packet_queue_get(is, &is->audioq, pkt, 1) < 0) {
+      return -1;
+    }
+    if(pkt->data == is->flush_pkt.data) {
+      avcodec_flush_buffers(is->audio_st->codec);
+      continue;
+    }
+    is->audio_pkt_data = pkt->data;
+    is->audio_pkt_size = pkt->size;
+    /* if update, update the audio clock w/pts */
+    if(pkt->pts != AV_NOPTS_VALUE) {
+      is->audio_clock = av_q2d(is->audio_st->time_base)*pkt->pts;
+    }
+  }
+}
+
+void audio_callback(void *userdata, Uint8 *stream, int len) {
+
+  VideoState *is = (VideoState *)userdata;
+  int len1, audio_size;
+  double pts;
+
+  while(len > 0) {
+    if(is->audio_buf_index >= is->audio_buf_size) {
+      /* We have already sent all our data; get more */
+      audio_size = audio_decode_frame(is, &pts);
+      if(audio_size < 0) {
+	/* If error, output silence */
+	is->audio_buf_size = 1024;
+	memset(is->audio_buf, 0, is->audio_buf_size);
+      } else {
+	audio_size = synchronize_audio(is, (int16_t *)is->audio_buf,
+				       audio_size, pts);
+	is->audio_buf_size = audio_size;
+      }
+      is->audio_buf_index = 0;
+    }
+    len1 = is->audio_buf_size - is->audio_buf_index;
+    if(len1 > len)
+      len1 = len;
+    memcpy(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, len1);
+    len -= len1;
+    stream += len1;
+    is->audio_buf_index += len1;
+  }
+
+  //notify(is, MEDIA_BUFFERING_UPDATE, 0, 0);
+}
+
+void video_refresh_timer(void *userdata);
+
+static Uint32 sdl_refresh_timer_cb(Uint32 interval, void *opaque) {
+  video_refresh_timer(opaque);
+  return 0; /* 0 means stop timer */
+}
+
+/* schedule a video refresh in 'delay' ms */
+static void schedule_refresh(VideoState *is, int delay) {
+  SDL_AddTimer(delay, sdl_refresh_timer_cb, is);
+}
+
+void video_display(VideoState *is) {
+
+  SDL_Rect rect;
+  VideoPicture *vp;
+  //AVPicture pict;
+  float aspect_ratio;
+  int w, h, x, y;
+  //int i;
+
+  vp = &is->pictq[is->pictq_rindex];
+  if(vp->bmp) {
+    if(is->video_st->codec->sample_aspect_ratio.num == 0) {
+      aspect_ratio = 0;
+    } else {
+      aspect_ratio = av_q2d(is->video_st->codec->sample_aspect_ratio) *
+	is->video_st->codec->width / is->video_st->codec->height;
+    }
+    if(aspect_ratio <= 0.0) {
+      aspect_ratio = (float)is->video_st->codec->width /
+	(float)is->video_st->codec->height;
+    }
+    /*h = screen->h;
+    w = ((int)rint(h * aspect_ratio)) & -3;
+    if(w > screen->w) {
+      w = screen->w;
+      h = ((int)rint(w / aspect_ratio)) & -3;
+    }
+    x = (screen->w - w) / 2;
+    y = (screen->h - h) / 2;
+
+    rect.x = x;
+    rect.y = y;
+    rect.w = w;
+    rect.h = h;
+    SDL_DisplayYUVOverlay(vp->bmp, &rect);*/
+
+    //displayBmp(&is->video_player, vp->bmp);
+
+	AVPacket packet;
+	av_init_packet(&packet);
+	packet.data = NULL;
+	packet.size = 0;
+	int got_packet = 0;
+    convert_image(is, is->video_st->codec, vp->bmp, &packet, &got_packet, -1, -1);
+    //av_free(vp->bmp);
+  }
+}
+
+void video_refresh_timer(void *userdata) {
+
+  VideoState *is = (VideoState *)userdata;
+  VideoPicture *vp;
+  double actual_delay, delay, sync_threshold, ref_clock, diff;
+
+  if(is->video_st) {
+    if(is->pictq_size == 0) {
+      schedule_refresh(is, 1);
+    } else {
+      vp = &is->pictq[is->pictq_rindex];
+
+      is->video_current_pts = vp->pts;
+      is->video_current_pts_time = av_gettime();
+
+      delay = vp->pts - is->frame_last_pts; /* the pts from last time */
+      if(delay <= 0 || delay >= 1.0) {
+	/* if incorrect delay, use previous one */
+	delay = is->frame_last_delay;
+      }
+      /* save for next time */
+      is->frame_last_delay = delay;
+      is->frame_last_pts = vp->pts;
+
+      /* update delay to sync to audio if not master source */
+      if(is->av_sync_type != AV_SYNC_VIDEO_MASTER) {
+	ref_clock = get_master_clock(is);
+	diff = vp->pts - ref_clock;
+
+	/* Skip or repeat the frame. Take delay into account
+	   FFPlay still doesn't "know if this is the best guess." */
+	sync_threshold = (delay > AV_SYNC_THRESHOLD) ? delay : AV_SYNC_THRESHOLD;
+	if(fabs(diff) < AV_NOSYNC_THRESHOLD) {
+	  if(diff <= -sync_threshold) {
+	    delay = 0;
+	  } else if(diff >= sync_threshold) {
+	    delay = 2 * delay;
+	  }
+	}
+      }
+
+      is->frame_timer += delay;
+      /* computer the REAL delay */
+      actual_delay = is->frame_timer - (av_gettime() / 1000000.0);
+      if(actual_delay < 0.010) {
+	/* Really it should skip the picture instead */
+	actual_delay = 0.010;
+      }
+      schedule_refresh(is, (int)(actual_delay * 1000 + 0.5));
+
+      /* show the picture! */
+      video_display(is);
+
+      /* update queue for next picture! */
+      if(++is->pictq_rindex == VIDEO_PICTURE_QUEUE_SIZE) {
+	is->pictq_rindex = 0;
+      }
+      SDL_LockMutex(is->pictq_mutex);
+      is->pictq_size--;
+      SDL_CondSignal(is->pictq_cond);
+      SDL_UnlockMutex(is->pictq_mutex);
+    }
+  } else {
+    schedule_refresh(is, 100);
+  }
+}
+
+void alloc_picture(void *userdata) {
+
+  VideoState *is = (VideoState *)userdata;
+  VideoPicture *vp;
+
+  vp = &is->pictq[is->pictq_windex];
+  if(vp->bmp) {
+    // we already have one make another, bigger/smaller
+	destroyBmp(&is->video_player, vp->bmp);
+  }
+  // Allocate a place to put our YUV image on that screen
+  vp->bmp = createBmp(&is->video_player, is->video_st->codec->width, is->video_st->codec->height);
+
+  vp->width = is->video_st->codec->width;
+  vp->height = is->video_st->codec->height;
+
+  SDL_LockMutex(is->pictq_mutex);
+  vp->allocated = 1;
+  SDL_CondSignal(is->pictq_cond);
+  SDL_UnlockMutex(is->pictq_mutex);
+
+}
+
+int queue_picture(VideoState *is, AVFrame *pFrame, double pts) {
+
+  VideoPicture *vp;
+  //int dst_pix_fmt;
+  AVPicture pict;
+
+  /* wait until we have space for a new pic */
+  SDL_LockMutex(is->pictq_mutex);
+  while(is->pictq_size >= VIDEO_PICTURE_QUEUE_SIZE &&
+	!is->quit) {
+    SDL_CondWait(is->pictq_cond, is->pictq_mutex);
+  }
+  SDL_UnlockMutex(is->pictq_mutex);
+
+  if(is->quit)
+    return -1;
+
+  // windex is set to 0 initially
+  vp = &is->pictq[is->pictq_windex];
+
+  /* allocate or resize the buffer! */
+  if(!vp->bmp ||
+     vp->width != is->video_st->codec->width ||
+     vp->height != is->video_st->codec->height) {
+    //SDL_Event event;
+
+    vp->allocated = 0;
+    /* we have to do it in the main thread */
+    //event.type = FF_ALLOC_EVENT;
+    //event.user.data1 = is;
+    //SDL_PushEvent(&event);
+    alloc_picture(is);
+
+    /* wait until we have a picture allocated */
+    SDL_LockMutex(is->pictq_mutex);
+    while(!vp->allocated && !is->quit) {
+      SDL_CondWait(is->pictq_cond, is->pictq_mutex);
+    }
+    SDL_UnlockMutex(is->pictq_mutex);
+    if(is->quit) {
+      return -1;
+    }
+  }
+  /* We have a place to put our picture on the queue */
+  /* If we are skipping a frame, do we set this to null
+     but still return vp->allocated = 1? */
+
+
+  if(vp->bmp) {
+
+    //dst_pix_fmt = PIX_FMT_YUV420P;
+    /* point pict at the queue */
+
+	vp->bmp = pFrame;
+    //updateBmp(&is->video_player, is->sws_ctx, vp->bmp, pFrame, is->video_st->codec->width, is->video_st->codec->height);
+
+    vp->pts = pts;
+
+    /* now we inform our display thread that we have a pic ready */
+    if(++is->pictq_windex == VIDEO_PICTURE_QUEUE_SIZE) {
+      is->pictq_windex = 0;
+    }
+    SDL_LockMutex(is->pictq_mutex);
+    is->pictq_size++;
+    SDL_UnlockMutex(is->pictq_mutex);
+  }
+  return 0;
+}
+
+double synchronize_video(VideoState *is, AVFrame *src_frame, double pts) {
+
+  double frame_delay;
+
+  if(pts != 0) {
+    /* if we have pts, set video clock to it */
+    is->video_clock = pts;
+  } else {
+    /* if we aren't given a pts, set it to the clock */
+    pts = is->video_clock;
+  }
+  /* update the video clock */
+  frame_delay = av_q2d(is->video_st->codec->time_base);
+  /* if we are repeating a frame, adjust clock accordingly */
+  frame_delay += src_frame->repeat_pict * (frame_delay * 0.5);
+  is->video_clock += frame_delay;
+  return pts;
+}
+
+uint64_t global_video_pkt_pts = AV_NOPTS_VALUE;
+
+/* These are called whenever we allocate a frame
+ * buffer. We use this to store the global_pts in
+ * a frame at the time it is allocated.
+ */
+int our_get_buffer(struct AVCodecContext *c, AVFrame *pic, int flags) {
+  int ret = avcodec_default_get_buffer2 (c, pic, flags);
+  uint64_t *pts = av_malloc(sizeof(uint64_t));
+  *pts = global_video_pkt_pts;
+  pic->opaque = pts;
+  return ret;
+}
+
+void convert_image(VideoState *state, AVCodecContext *pCodecCtx, AVFrame *pFrame, AVPacket *avpkt, int *got_packet_ptr, int width, int height) {
 	AVCodecContext *codecCtx;
 	AVCodec *codec;
+	AVFrame *frame;
 
-	if (stream_index < 0 || stream_index >= pFormatCtx->nb_streams) {
-		return FAILURE;
+	*got_packet_ptr = 0;
+
+	if (width == -1) {
+		width = pCodecCtx->width;
 	}
 
-	// Get a pointer to the codec context for the stream
-	codecCtx = pFormatCtx->streams[stream_index]->codec;
-
-	printf("avcodec_find_decoder %s\n", codecCtx->codec_name);
-
-	// Find the decoder for the audio stream
-	codec = avcodec_find_decoder(codecCtx->codec_id);
-
-	if(codec == NULL) {
-	    printf("avcodec_find_decoder() failed to find audio decoder\n");
-	    return FAILURE;
+	if (height == -1) {
+		height = pCodecCtx->height;
 	}
 
-	// Open the codec
-    if (!codec || (avcodec_open2(codecCtx, codec, NULL) < 0)) {
+	codec = avcodec_find_encoder(TARGET_IMAGE_CODEC);
+	if (!codec) {
+	    printf("avcodec_find_decoder() failed to find decoder\n");
+		goto fail;
+	}
+
+    codecCtx = avcodec_alloc_context3(codec);
+	if (!codecCtx) {
+		printf("avcodec_alloc_context3 failed\n");
+		goto fail;
+	}
+
+	codecCtx->bit_rate = pCodecCtx->bit_rate;
+	//codecCtx->width = pCodecCtx->width;
+	//codecCtx->height = pCodecCtx->height;
+	codecCtx->width = width;
+	codecCtx->height = height;
+	codecCtx->pix_fmt = TARGET_IMAGE_FORMAT;
+	codecCtx->codec_type = AVMEDIA_TYPE_VIDEO;
+	codecCtx->time_base.num = pCodecCtx->time_base.num;
+	codecCtx->time_base.den = pCodecCtx->time_base.den;
+
+	if (!codec || avcodec_open2(codecCtx, codec, NULL) < 0) {
 	  	printf("avcodec_open2() failed\n");
-		return FAILURE;
+		goto fail;
 	}
 
-	switch(codecCtx->codec_type) {
-		case AVMEDIA_TYPE_AUDIO:
-			s->audio_stream = stream_index;
-		    s->audio_st = pFormatCtx->streams[stream_index];
-	        s->buffer_size = (s->init_audio_track_callback(s->clazz, codecCtx->sample_rate, codecCtx->channels, from_thread));
-			break;
-		case AVMEDIA_TYPE_VIDEO:
-			s->video_stream = stream_index;
-		    s->video_st = pFormatCtx->streams[stream_index];
-			break;
-		default:
-			break;
+	frame = av_frame_alloc();
+
+	if (!frame) {
+		goto fail;
 	}
 
-	return SUCCESS;
-}
+	// Determine required buffer size and allocate buffer
+	int numBytes = avpicture_get_size(TARGET_IMAGE_FORMAT, codecCtx->width, codecCtx->height);
+	void * buffer = (uint8_t *) av_malloc(numBytes * sizeof(uint8_t));
 
-int player_prepare(State **ps, int from_thread)
-{
-	int audio_index = -1;
-	int video_index = -1;
-	int i;
+	// set the frame parameters
+	frame->format = TARGET_IMAGE_FORMAT;
+    frame->width = codecCtx->width;
+    frame->height = codecCtx->height;
 
-	State *state = *ps;
-	
-	if (state && state->pFormatCtx) {
-		avformat_close_input(&state->pFormatCtx);
-	}
+    avpicture_fill(((AVPicture *)frame),
+    		buffer,
+    		TARGET_IMAGE_FORMAT,
+    		codecCtx->width,
+    		codecCtx->height);
 
-	state->pFormatCtx = NULL;
-	state->audio_stream = -1;
-	state->video_stream = -1;
-	state->audio_st = NULL;
-	state->video_st = NULL;
+	/*struct SwsContext *scalerCtx = sws_getContext(pCodecCtx->width,
+			pCodecCtx->height,
+			pCodecCtx->pix_fmt,
+			//pCodecCtx->width,
+			//pCodecCtx->height,
+			width,
+			height,
+			TARGET_IMAGE_FORMAT,
+	        SWS_BILINEAR,
+	        NULL,
+	        NULL,
+	        NULL);
 
-    printf("Path: %s\n", state->filename);
+	if (!scalerCtx) {
+		printf("sws_getContext() failed\n");
+		goto fail;
+	}*/
 
-    AVDictionary *options = NULL;
-    av_dict_set(&options, "icy", "1", 0);
-    av_dict_set(&options, "user-agent", "FFmpegMediaPlayer", 0);
-    
-    if (state->headers) {
-    	av_dict_set(&options, "headers", state->headers, 0);
-    }
-    
-    if (state->offset > 0) {
-        state->pFormatCtx = avformat_alloc_context();
-        state->pFormatCtx->skip_initial_bytes = state->offset;
-    }
-    
-    if (avformat_open_input(&state->pFormatCtx, state->filename, NULL, &options) != 0) {
-	    printf("Input file could not be opened\n");
-		state->notify_callback(state->clazz, MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, 0, from_thread);
-		*ps = NULL;
-    	return MEDIA_ERROR;
-    }
+    sws_scale(state->sws_ctx,
+    		(const uint8_t * const *) pFrame->data,
+    		pFrame->linesize,
+    		0,
+    		pFrame->height,
+    		frame->data,
+    		frame->linesize);
 
-	if (avformat_find_stream_info(state->pFormatCtx, NULL) < 0) {
-	    printf("Stream information could not be retrieved\n");
-	    avformat_close_input(&state->pFormatCtx);
-		state->notify_callback(state->clazz, MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, 0, from_thread);
-		*ps = NULL;
-    	return MEDIA_ERROR;
-	}
+	int ret = avcodec_encode_video2(codecCtx, avpkt, frame, got_packet_ptr);
 
-	char duration[30] = "0";
-	get_duration(state->pFormatCtx, duration);
-	av_dict_set(&state->pFormatCtx->metadata, DURATION, duration, 0);
-	
-	get_shoutcast_metadata(state->pFormatCtx);
-	
-    // Find the first audio and video stream
-	for (i = 0; i < state->pFormatCtx->nb_streams; i++) {
-		if (state->pFormatCtx->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO && video_index < 0) {
-			video_index = i;
-		}
+	if (ret >= 0 && state->native_window) {
+		ANativeWindow_setBuffersGeometry(state->native_window, width, height, WINDOW_FORMAT_RGBA_8888);
 
-		if (state->pFormatCtx->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO && audio_index < 0) {
-			audio_index = i;
-		}
-		
-		set_codec(state->pFormatCtx, i);
-	}
+		ANativeWindow_Buffer windowBuffer;
 
-	if (audio_index >= 0) {
-		stream_component_open(state, audio_index, from_thread);
-	}
+		if (ANativeWindow_lock(state->native_window, &windowBuffer, NULL) == 0) {
+			int h = 0;
 
-	if (video_index >= 0) {
-		stream_component_open(state, video_index, from_thread);
-	}
-
-	if (state->video_stream < 0 && state->audio_stream < 0) {
-	    avformat_close_input(&state->pFormatCtx);
-		state->notify_callback(state->clazz, MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, 0, from_thread);
-		*ps = NULL;
-		return MEDIA_ERROR;
-	}
-
-    set_rotation(state);
-    set_framerate(state);
-	
-	state->pFormatCtx->interrupt_callback.callback = decode_interrupt_cb;
-	state->pFormatCtx->interrupt_callback.opaque = state;
-	
-    // fill the inital buffer
-	AVPacket packet;
-	memset(&packet, 0, sizeof(packet)); //make sure we can safely free it
-
-	int j, ret;
-    int bytes_written = 0;
-	
-	while (bytes_written < state->buffer_size) {
-		for (j = 0; j < state->pFormatCtx->nb_streams; j++) {
-			//av_init_packet(&packet);
-			ret = av_read_frame(state->pFormatCtx, &packet);
-
-			if (ret < 0) {
-				if (ret == AVERROR_EOF || url_feof(state->pFormatCtx->pb)) {
-					//break;
-			    }
+			for (h = 0; h < height; h++)  {
+			  memcpy(windowBuffer.bits + h * windowBuffer.stride * 4,
+			         buffer + h * frame->linesize[0],
+			         width*4);
 			}
 
-			int frame_size_ptr = 0;
-			ret = decode_frame_from_packet(state, &packet, &frame_size_ptr, from_thread);
-		    __android_log_print(ANDROID_LOG_ERROR, "TAG", "Fill buffer: %d -> %d", frame_size_ptr, state->buffer_size);
-			bytes_written = bytes_written + frame_size_ptr;
-			av_free_packet(&packet);
+			ANativeWindow_unlockAndPost(state->native_window);
 		}
 	}
-		
-	*ps = state;
 
-	state->notify_callback(state->clazz, MEDIA_PREPARED, 0, 0, from_thread);
-
-	return SUCCESS;
-}
-
-int prepareAsync_l(State **ps)
-{
-     return SUCCESS;
-}
-
-int prepare(State **ps)
-{
-    printf("prepare\n");
-    return player_prepare(ps, NOT_FROM_THREAD);
-}
-
-void player_prepare_thread(void *data)
-{
-	State ** ps = (State **) data;
-	player_prepare(ps, FROM_THREAD);
-}
-
-int prepareAsync(State **ps)
-{
-    pthread_t prepare_thread;
-    pthread_create(&prepare_thread, NULL, (void *) &player_prepare_thread, ps);
-    return SUCCESS;
-}
-
-int start(State **ps)
-{
-	State *state = *ps;
-    
-	if (!state->paused) {
-		pthread_mutex_lock(lock);
-		pthread_create(&state->decoder_thread, NULL, (void *) &player_decode, state);
+	if (ret < 0) {
+		*got_packet_ptr = 0;
 	}
-    
-    state->paused = 0;
-    state->player_started = 1;
-    
-    pthread_mutex_unlock(lock);
-    
-    return 0;
-}
 
-int stop(State **ps)
-{
-	State *state = *ps;
-	
-    pthread_mutex_lock(lock);
-    state->abort_request = 1;
-    pthread_mutex_unlock(lock);
-	
-    return 0;
-}
+	// TODO is this right?
+	fail:
+    av_free(frame);
 
-int pause(State **ps)
-{
-	State *state = *ps;
-	
-    pthread_mutex_lock(lock);
-	state->paused = !state->paused;
-    pthread_mutex_lock(lock);
-    
-    return 0;
-}
-
-int isPlaying(State **ps)
-{
-	State *state = *ps;
-
-	if (!state->player_started) {
-		return 0;
-	} else {
-	    return !state->paused;
-	}
-}
-
-int getVideoWidth(int *w)
-{
-    return 0;
-}
-
-int getVideoHeight(int *h)
-{
-    return 0;
-}
-
-int getCurrentPosition(State **ps, int *msec)
-{
-	State *state = *ps;
-	*msec = state->audio_clock * 1000;
-    return 0;
-}
-
-int getDuration(State **ps, int *msec)
-{
-	State *state = *ps;
-	if (state->pFormatCtx && (state->pFormatCtx->duration != AV_NOPTS_VALUE)) {
-		*msec = (state->pFormatCtx->duration / AV_TIME_BASE) * 1000;
-	} else {
-		*msec = 0;
-	}
-	
-    return 0;
-}
-
-int seekTo(State **ps, int msec)
-{
-	State *state = *ps;
-	
-    pthread_mutex_lock(lock);
-
-    if (!state->seek_req) {
-    	state->seek_pos = msec * 1000;
-    	state->seek_rel = msec * 1000;
-    	state->seek_flags = AVSEEK_FLAG_FRAME;
-        state->seek_req = 1;
+    if (buffer) {
+    	free(buffer);
     }
 
-    pthread_mutex_unlock(lock);
-	
-    return 0;
+	if (codecCtx) {
+		avcodec_close(codecCtx);
+	    av_free(codecCtx);
+	}
+
+	//if (scalerCtx) {
+	//	sws_freeContext(scalerCtx);
+	//}
+
+	if (ret < 0 || !*got_packet_ptr) {
+		av_free_packet(avpkt);
+	}
 }
 
-int reset(State **ps)
-{
-	State *state = *ps;
-	
-    pthread_mutex_lock(lock);
+int video_thread(void *arg) {
+  VideoState *is = (VideoState *)arg;
+  AVPacket pkt1, *packet = &pkt1;
+  int frameFinished;
+  AVFrame *pFrame;
+  double pts;
 
-    if (state) {
-    	state->abort_request = 1;
-    	pthread_join(state->decoder_thread, NULL);
+  //pFrame = av_frame_alloc();
+
+  for(;;) {
+	  pFrame = av_frame_alloc();
+    if(packet_queue_get(is, &is->videoq, packet, 1) < 0) {
+      // means we quit getting packets
+      break;
     }
-    
-    pthread_mutex_unlock(lock);
-	
-    clear_l(ps);
-    
+    if(packet->data == is->flush_pkt.data) {
+      avcodec_flush_buffers(is->video_st->codec);
+      continue;
+    }
+    pts = 0;
+
+    // Save global pts to be stored in pFrame in first call
+    global_video_pkt_pts = packet->pts;
+    // Decode video frame
+    avcodec_decode_video2(is->video_st->codec, pFrame, &frameFinished,
+				packet);
+    if(packet->dts == AV_NOPTS_VALUE
+       && pFrame->opaque && *(uint64_t*)pFrame->opaque != AV_NOPTS_VALUE) {
+      pts = *(uint64_t *)pFrame->opaque;
+    } else if(packet->dts != AV_NOPTS_VALUE) {
+      pts = packet->dts;
+    } else {
+      pts = 0;
+    }
+    pts *= av_q2d(is->video_st->time_base);
+
+    // Did we get a video frame?
+    if(frameFinished) {
+      pts = synchronize_video(is, pFrame, pts);
+      if(queue_picture(is, pFrame, pts) < 0) {
+	break;
+      }
+    }
+    av_free_packet(packet);
+  }
+  //av_free(pFrame);
+  return 0;
+}
+int stream_component_open(VideoState *is, int stream_index) {
+
+  AVFormatContext *pFormatCtx = is->pFormatCtx;
+  AVCodecContext *codecCtx = NULL;
+  AVCodec *codec = NULL;
+  AVDictionary *optionsDict = NULL;
+
+  if(stream_index < 0 || stream_index >= pFormatCtx->nb_streams) {
+    return -1;
+  }
+
+  // Get a pointer to the codec context for the video stream
+  codecCtx = pFormatCtx->streams[stream_index]->codec;
+
+  if(codecCtx->codec_type == AVMEDIA_TYPE_AUDIO) {
+	is->audio_callback = audio_callback;
+
+    // Set audio settings from codec info
+	AudioPlayer *player = malloc(sizeof(AudioPlayer));
+    is->audio_player = player;
+    createEngine(&is->audio_player);
+    createBufferQueueAudioPlayer(&is->audio_player, is, codecCtx->channels, codecCtx->sample_rate);
+    //is->audio_hw_buf_size = 4096;
+  } else if (codecCtx->codec_type == AVMEDIA_TYPE_VIDEO) {
+	// Set video settings from codec info
+	VideoPlayer *player = malloc(sizeof(VideoPlayer));
+	is->video_player = player;
+	createVideoEngine(&is->video_player);
+	createScreen(&is->video_player, is->native_window, 0, 0);
+  }
+  codec = avcodec_find_decoder(codecCtx->codec_id);
+  if(!codec || (avcodec_open2(codecCtx, codec, &optionsDict) < 0)) {
+    fprintf(stderr, "Unsupported codec!\n");
+    return -1;
+  }
+
+  switch(codecCtx->codec_type) {
+  case AVMEDIA_TYPE_AUDIO:
+    is->audioStream = stream_index;
+    is->audio_st = pFormatCtx->streams[stream_index];
+    is->audio_buf_size = 0;
+    is->audio_buf_index = 0;
+
+    /* averaging filter for audio sync */
+    is->audio_diff_avg_coef = exp(log(0.01 / AUDIO_DIFF_AVG_NB));
+    is->audio_diff_avg_count = 0;
+    /* Correct audio only if larger error than this */
+    is->audio_diff_threshold = 2.0 * SDL_AUDIO_BUFFER_SIZE / codecCtx->sample_rate;
+
+	is->sws_ctx_audio = swr_alloc();
+	if (!is->sws_ctx_audio) {
+		fprintf(stderr, "Could not allocate resampler context\n");
+		return -1;
+	}
+
+    memset(&is->audio_pkt, 0, sizeof(is->audio_pkt));
+    packet_queue_init(&is->audioq);
+    break;
+  case AVMEDIA_TYPE_VIDEO:
+    is->videoStream = stream_index;
+    is->video_st = pFormatCtx->streams[stream_index];
+
+    is->frame_timer = (double)av_gettime() / 1000000.0;
+    is->frame_last_delay = 40e-3;
+    is->video_current_pts_time = av_gettime();
+
+    packet_queue_init(&is->videoq);
+
+    createScreen(&is->video_player, NULL, is->video_st->codec->width, is->video_st->codec->height);
+
+    is->video_tid = malloc(sizeof(*(is->video_tid)));
+	// uncomment for video
+    pthread_create(is->video_tid, NULL, (void *) &video_thread, is);
+    is->sws_ctx = createScaler(&is->video_player, is->video_st->codec);
+
+    codecCtx->get_buffer2 = our_get_buffer;
+
+    break;
+  default:
+    break;
+  }
+
+  return 0;
+}
+
+int decode_interrupt_cb(void *opaque) {
+  VideoState *is = (VideoState *)opaque;
+
+  return (is && is->quit);
+}
+int decode_thread(void *arg) {
+
+  VideoState *is = (VideoState *)arg;
+  AVFormatContext *pFormatCtx = NULL;
+  AVPacket pkt1, *packet = &pkt1;
+
+  AVDictionary *io_dict = NULL;
+  AVIOInterruptCB callback;
+
+  int video_index = -1;
+  int audio_index = -1;
+  int i;
+
+  int ret;
+  int eof = 0;
+
+  is->videoStream=-1;
+  is->audioStream=-1;
+
+  // will interrupt blocking functions if we quit!
+  callback.callback = decode_interrupt_cb;
+  callback.opaque = is;
+  if (avio_open2(&is->io_context, is->filename, 0, &callback, &io_dict))
+  {
+    fprintf(stderr, "Unable to open I/O for %s\n", is->filename);
+    return -1;
+  }
+
+  // Open video file
+  if(avformat_open_input(&pFormatCtx, is->filename, NULL, NULL)!=0)
+    return -1; // Couldn't open file
+
+  is->pFormatCtx = pFormatCtx;
+
+  // Retrieve stream information
+  if(avformat_find_stream_info(pFormatCtx, NULL)<0)
+    return -1; // Couldn't find stream information
+
+  // Dump information about file onto standard error
+  av_dump_format(pFormatCtx, 0, is->filename, 0);
+
+  // Find the first video stream
+  for(i=0; i<pFormatCtx->nb_streams; i++) {
+    if(pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_VIDEO &&
+       video_index < 0) {
+      video_index=i;
+    }
+    if(pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_AUDIO &&
+       audio_index < 0) {
+      audio_index=i;
+    }
+  }
+  if(audio_index >= 0) {
+    stream_component_open(is, audio_index);
+  }
+  if(video_index >= 0) {
+    stream_component_open(is, video_index);
+  }
+
+  if(is->videoStream < 0 && is->audioStream < 0) {
+  //if(is->videoStream < 0 || is->audioStream < 0) {
+    fprintf(stderr, "%s: could not open codecs\n", is->filename);
+    notify(is, MEDIA_ERROR, 0, 0);
     return 0;
+  }
+
+  // main decode loop
+
+  for(;;) {
+    if(is->quit) {
+      break;
+    }
+
+    /*if (is->paused != is->last_paused) {
+        is->last_paused = is->paused;
+        if (is->paused)
+            is->read_pause_return = av_read_pause(is->pFormatCtx);
+        else
+            av_read_play(is->pFormatCtx);
+    }*/
+
+    // seek stuff goes here
+    if(is->seek_req) {
+		int64_t seek_target = is->seek_pos;
+		int64_t seek_min    = is->seek_rel > 0 ? seek_target - is->seek_rel + 2: INT64_MIN;
+		int64_t seek_max    = is->seek_rel < 0 ? seek_target - is->seek_rel - 2: INT64_MAX;
+
+		int ret = avformat_seek_file(is->pFormatCtx, -1, seek_min, seek_target, seek_max, is->seek_flags);
+      if(ret < 0) {
+	fprintf(stderr, "%s: error while seeking\n", is->pFormatCtx->filename);
+      } else {
+	if(is->audioStream >= 0) {
+	  packet_queue_flush(&is->audioq);
+	  packet_queue_put(is, &is->audioq, &is->flush_pkt);
+	}
+	if(is->videoStream >= 0) {
+	  packet_queue_flush(&is->videoq);
+	  packet_queue_put(is, &is->videoq, &is->flush_pkt);
+	}
+	notify(is, MEDIA_SEEK_COMPLETE, 0, 0);
+
+      }
+      is->seek_req = 0;
+      eof = 0;
+    }
+
+    if (is->audioq.size >= MAX_AUDIOQ_SIZE && !is->prepared) {
+        queueAudioSamples(&is->audio_player, is);
+
+		notify(is, MEDIA_PREPARED, 0, 0);
+    	is->prepared = 1;
+    }
+
+    if(is->audioq.size > MAX_AUDIOQ_SIZE ||
+       is->videoq.size > MAX_VIDEOQ_SIZE) {
+      SDL_Delay(10);
+      continue;
+    }
+    if((ret = av_read_frame(is->pFormatCtx, packet)) < 0) {
+      if (ret == AVERROR_EOF || !is->pFormatCtx->pb->eof_reached) {
+          eof = 1;
+    	  break;
+      }
+
+      if(is->pFormatCtx->pb->error == 0) {
+	SDL_Delay(100); /* no error; wait for user input */
+	continue;
+      } else {
+	break;
+      }
+    }
+    // Is this a packet from the video stream?
+    if(packet->stream_index == is->videoStream) {
+      packet_queue_put(is, &is->videoq, packet);
+    } else if(packet->stream_index == is->audioStream) {
+      packet_queue_put(is, &is->audioq, packet);
+    } else {
+      av_free_packet(packet);
+    }
+
+	if (eof) {
+		break;
+	}
+  }
+
+  if (eof) {
+      notify(is, MEDIA_PLAYBACK_COMPLETE, 0, 0);
+  }
+  return 0;
 }
 
-int setLooping(State **ps, int loop)
-{
-	State *state = *ps;
-	
-	state->loop = loop;
-	
-    return 0;
+void stream_seek(VideoState *is, int64_t pos, int64_t rel, int seek_by_bytes) {
+	if (!is->seek_req) {
+		is->seek_pos = pos;
+		is->seek_rel = rel;
+		is->seek_flags &= ~AVSEEK_FLAG_BYTE;
+		if (seek_by_bytes)
+			is->seek_flags |= AVSEEK_FLAG_BYTE;
+		is->seek_req = 1;
+	}
 }
 
-/*void notify(int msg, int ext1, int ext2)
-{
+VideoState * create() {
+	VideoState *is;
 
-}*/
+	is = av_mallocz(sizeof(VideoState));
+	is->last_paused = -1;
 
-/*sp<IMemory> decode(const char* url, uint32_t *pSampleRate, int* pNumChannels, int* pFormat)
-{
-    return p;
+    return is;
 }
 
-sp<IMemory> decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, int* pFormat)
-{
-    return p;
-}*/
+VideoState * getNextMediaPlayer(VideoState **ps) {
+	/*VideoState *is = *ps;
+    
+    if (is && is->next) {
+        return is->next;
+    }*/
+    
+    return NULL;
+}
 
+void disconnect(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is) {
+		if (is->pFormatCtx) {
+			avformat_close_input(&is->pFormatCtx);
+			is->pFormatCtx = NULL;
+		}
+
+		if (is->audioq.initialized == 1) {
+			if (is->audioq.first_pkt) {
+				free(is->audioq.first_pkt);
+			}
+
+			if (is->audioq.last_pkt) {
+				//free(is->audioq.last_pkt);
+			}
+
+			if (is->audioq.mutex) {
+				free(is->audioq.mutex);
+				is->audioq.mutex = NULL;
+			}
+
+			if (is->audioq.cond) {
+				free(is->audioq.cond);
+				is->audioq.cond = NULL;
+			}
+
+			is->audioq.initialized = 0;
+		}
+
+		/*AVFrame *frame = &is->audio_frame;
+		    if (frame->data) {
+		    	av_free_frame(frame);
+		    }*/
+
+		AVPacket *pkt = &is->audio_pkt;
+		if (pkt->data) {
+			av_free_packet(pkt);
+		}
+
+		if (is->videoq.initialized == 1) {
+			if (is->videoq.first_pkt) {
+				free(is->videoq.first_pkt);
+			}
+
+			if (is->videoq.last_pkt) {
+				//free(is->videoq.last_pkt);
+			}
+
+			if (is->videoq.mutex) {
+				free(is->videoq.mutex);
+				is->videoq.mutex = NULL;
+			}
+
+			if (is->videoq.cond) {
+				free(is->videoq.cond);
+				is->videoq.cond = NULL;
+			}
+
+			is->videoq.initialized = 0;
+		}
+
+		//VideoPicture    pictq[VIDEO_PICTURE_QUEUE_SIZE];
+
+		if (is->pictq_mutex) {
+			free(is->pictq_mutex);
+			is->pictq_mutex = NULL;
+		}
+
+		if (is->pictq_cond) {
+			free(is->pictq_cond);
+			is->pictq_cond = NULL;
+		}
+
+		if (is->parse_tid) {
+			free(is->parse_tid);
+			is->parse_tid = NULL;
+		}
+
+		if (is->video_tid) {
+			free(is->video_tid);
+			is->video_tid = NULL;
+		}
+
+		if (is->io_context) {
+			avio_close(is->io_context);
+			is->io_context = NULL;
+		}
+
+		if (is->sws_ctx) {
+			sws_freeContext(is->sws_ctx);
+			is->sws_ctx = NULL;
+		}
+
+		if (is->sws_ctx_audio) {
+			swr_free(&is->sws_ctx_audio);
+			is->sws_ctx_audio = NULL;
+		}
+
+		if (is->audio_player) {
+			shutdown(&is->audio_player);
+			is->audio_player = NULL;
+		}
+
+		if (is->tid) {
+			free(is->tid);
+			is->tid = NULL;
+		}
+
+	    av_free_packet(&is->flush_pkt);
+
+		av_freep(&is);
+		*ps = NULL;
+	}
+}
+
+int setDataSourceURI(VideoState **ps, const char *url, const char *headers) {
+	printf("setDataSource\n");
+
+    SDL_Init(SDL_INIT_TIMER);
+
+	if (!url) {
+		return INVALID_OPERATION;
+	}
+
+	VideoState *is = *ps;
+
+	// Workaround for FFmpeg ticket #998
+	// "must convert mms://... streams to mmsh://... for FFmpeg to work"
+	char *restrict_to = strstr(url, "mms://");
+	if (restrict_to) {
+		strncpy(restrict_to, "mmsh://", 6);
+		puts(url);
+	}
+
+	strncpy(is->filename, url, sizeof(is->filename));
+
+	if (headers) {
+		strncpy(is->headers, headers, sizeof(is->headers));
+	}
+
+	return NO_ERROR;
+}
+
+int setDataSourceFD(VideoState **ps, int fd, int64_t offset, int64_t length) {
+	printf("setDataSource\n");
+
+	VideoState *is = *ps;
+
+	int myfd = dup(fd);
+
+	char str[20];
+	sprintf(str, "pipe:%d", myfd);
+	strncpy(is->filename, str, sizeof(is->filename));
+
+	is->fd = myfd;
+	is->offset = offset;
+
+	*ps = is;
+
+	return NO_ERROR;
+}
+
+int setVideoSurface(VideoState **ps, ANativeWindow* native_window) {
+    printf("set_native_window\n");
+
+	VideoState *is = *ps;
+
+	is->native_window = native_window;
+
+	*ps = is;
+
+	return NO_ERROR;
+}
+
+int setListener(VideoState **ps, void* clazz, void (*listener) (void*, int, int, int)) {
+	VideoState *is = *ps;
+
+	is->clazz = clazz;
+	is->notify_callback = listener;
+
+	return NO_ERROR;
+}
+
+int prepare(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is->prepare_sync) {
+		return -EALREADY;
+	}
+	is->prepare_sync = 1;
+	int ret = prepareAsync_l(ps);
+	if (ret != NO_ERROR) {
+		return ret;
+	}
+	if (is->prepare_sync) {
+		while (!is->prepared) {
+			sleep(1);
+		}
+
+		is->prepare_sync = 0;
+	}
+	return is->prepare_sync;
+}
+
+int prepareAsync(VideoState **ps) {
+  return prepareAsync_l(ps);
+}
+
+int start(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is && is->audio_player) {
+		is->paused = 0;
+	    is->player_started = 1;
+		setPlayingAudioPlayer(&is->audio_player, 0);
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int stop(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is) {
+	    is->quit = 1;
+	    /*
+	     * If the video has finished playing, then both the picture and
+	     * audio queues are waiting for more data.  Make them stop
+	     * waiting and terminate normally.
+	     */
+	    if (is->audioq.initialized == 1) {
+	    	SDL_CondSignal(is->audioq.cond);
+	    }
+
+	    if (is->videoq.initialized == 1) {
+	    	SDL_CondSignal(is->videoq.cond);
+	    }
+
+	    if (is->parse_tid) {
+	    	pthread_join(*(is->parse_tid), NULL);
+	    }
+
+	    if (is->video_tid) {
+	    	pthread_join(*(is->video_tid), NULL);
+	    }
+
+        setPlayingAudioPlayer(&is->audio_player, 2);
+        
+	    clear_l(&is);
+
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int pause_l(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is && is->audio_player) {
+		is->paused = !is->paused;
+		setPlayingAudioPlayer(&is->audio_player, 1);
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int isPlaying(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is) {
+		if (!is->player_started) {
+			return 0;
+		} else {
+			return !is->paused;
+		}
+	}
+
+	return 0;
+}
+
+int getVideoWidth(VideoState **ps, int *w) {
+	VideoState *is = *ps;
+
+	if (!is || !is->video_st) {
+		return INVALID_OPERATION;
+	}
+
+    *w = is->video_st->codec->width;
+
+    return NO_ERROR;
+}
+
+int getVideoHeight(VideoState **ps, int *h) {
+	VideoState *is = *ps;
+
+	if (!is || !is->video_st) {
+		return INVALID_OPERATION;
+	}
+
+    *h = is->video_st->codec->height;
+
+    return NO_ERROR;
+}
+
+int seekTo(VideoState **ps, int msec) {
+    int result = seekTo_l(ps, msec);
+	return result;
+}
+
+int getCurrentPosition(VideoState **ps, int *msec) {
+	VideoState *is = *ps;
+
+	if (is) {
+		*msec = is->audio_clock * 1000;
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int getDuration(VideoState **ps, int *msec) {
+	return getDuration_l(ps, msec);
+}
+
+int reset(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is) {
+	    is->quit = 1;
+	    /*
+	     * If the video has finished playing, then both the picture and
+	     * audio queues are waiting for more data.  Make them stop
+	     * waiting and terminate normally.
+	     */
+	    if (is->audioq.initialized == 1) {
+	    	SDL_CondSignal(is->audioq.cond);
+	    }
+
+	    if (is->videoq.initialized == 1) {
+	    	SDL_CondSignal(is->videoq.cond);
+	    }
+
+	    if (is->parse_tid) {
+	    	pthread_join(*(is->parse_tid), NULL);
+	    }
+
+	    if (is->video_tid) {
+	    	pthread_join(*(is->video_tid), NULL);
+	    }
+
+	    clear_l(&is);
+
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int setAudioStreamType(VideoState **ps, int type) {
+	VideoState *is = *ps;
+
+	if (is) {
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+
+}
+
+int setLooping(VideoState **ps, int loop) {
+	VideoState *is = *ps;
+
+	if (is) {
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int isLooping(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is) {
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int setVolume(VideoState **ps, float leftVolume, float rightVolume) {
+	VideoState *is = *ps;
+
+	if (is && is->audio_player) {
+		setVolumeUriAudioPlayer(&is->audio_player, leftVolume);
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+void notify(VideoState *is, int msg, int ext1, int ext2) {
+	if (is->notify_callback) {
+		is->notify_callback(is->clazz, msg, ext1, ext2);
+	}
+}
+
+int setNextPlayer(VideoState **ps, VideoState *next) {
+    /*VideoState *is = *ps;
+    
+    if (is) {
+        is->next = next;
+        return NO_ERROR;
+    }*/
+    
+    return NO_ERROR; //INVALID_OPERATION;
+}
+
+void clear_l(VideoState **ps) {
+	VideoState *is = *ps;
+
+	if (is) {
+		if (is->pFormatCtx) {
+			avformat_close_input(&is->pFormatCtx);
+			is->pFormatCtx = NULL;
+		}
+
+		is->videoStream = 0;
+		is->audioStream = 0;
+
+		is->av_sync_type = 0;
+		is->external_clock = 0;
+		is->external_clock_time = 0;
+	    is->seek_req = 0;
+	    is->seek_flags = 0;
+	    is->seek_pos = 0;
+	    is->seek_rel = 0;
+
+	    is->audio_clock = 0;
+	    is->audio_st = NULL;
+
+	    if (is->audioq.initialized == 1) {
+	    	if (is->audioq.first_pkt) {
+	    		free(is->audioq.first_pkt);
+	    	}
+
+	        if (is->audioq.last_pkt) {
+	        	//free(is->audioq.last_pkt);
+			}
+
+	        if (is->audioq.mutex) {
+	        	free(is->audioq.mutex);
+	        	is->audioq.mutex = NULL;
+	        }
+
+	        if (is->audioq.cond) {
+	        	free(is->audioq.cond);
+	        	is->audioq.cond = NULL;
+	        }
+
+	        is->audioq.initialized = 0;
+	    }
+
+  	    /*AVFrame *frame = &is->audio_frame;
+	    if (frame->data) {
+	    	av_free_frame(frame);
+	    }*/
+
+	    is->audio_buf[0] = '\0';
+	    is->audio_buf_size = 0;
+	    is->audio_buf_index = 0;
+
+  	    AVPacket *pkt = &is->audio_pkt;
+	    if (pkt->data) {
+	    	av_free_packet(pkt);
+	    }
+
+	    is->audio_pkt_data = NULL;
+	    is->audio_pkt_size = 0;
+	    is->audio_hw_buf_size = 0;
+	    is->audio_diff_cum = 0;
+	    is->audio_diff_avg_coef = 0;
+	    is->audio_diff_threshold = 0;
+	    is->audio_diff_avg_count = 0;
+	    is->frame_timer = 0;
+	    is->frame_last_pts = 0;
+	    is->frame_last_delay = 0;
+	    is->video_clock = 0;
+	    is->video_current_pts = 0;
+	    is->video_current_pts_time = 0;
+	    is->video_st = NULL;
+
+	    if (is->videoq.initialized == 1) {
+	    	if (is->videoq.first_pkt) {
+	    		free(is->videoq.first_pkt);
+	    	}
+
+	        if (is->videoq.last_pkt) {
+	        	//free(is->videoq.last_pkt);
+			}
+
+	        if (is->videoq.mutex) {
+	        	free(is->videoq.mutex);
+	        	is->videoq.mutex = NULL;
+	        }
+
+	        if (is->videoq.cond) {
+	        	free(is->videoq.cond);
+	        	is->videoq.cond = NULL;
+	        }
+
+	        is->videoq.initialized = 0;
+	    }
+
+	    //VideoPicture    pictq[VIDEO_PICTURE_QUEUE_SIZE];
+	    is->pictq_size = 0;
+	    is->pictq_rindex = 0;
+	    is->pictq_windex = 0;
+
+	    if (is->pictq_mutex) {
+	    	free(is->pictq_mutex);
+	    	is->pictq_mutex = NULL;
+	    }
+
+	    if (is->pictq_cond) {
+	    	free(is->pictq_cond);
+	    	is->pictq_cond = NULL;
+	    }
+
+	    if (is->parse_tid) {
+	    	free(is->parse_tid);
+	    	is->parse_tid = NULL;
+	    }
+
+	    if (is->video_tid) {
+	    	free(is->video_tid);
+	    	is->video_tid = NULL;
+	    }
+
+	    //is->filename[0] = '\0';
+	    //is->quit = 0;
+
+	    if (is->io_context) {
+	    	avio_close(is->io_context);
+	    	is->io_context = NULL;
+	    }
+
+	    if (is->sws_ctx) {
+	    	sws_freeContext(is->sws_ctx);
+	    	is->sws_ctx = NULL;
+	    }
+
+	    if (is->sws_ctx_audio) {
+	    	swr_free(&is->sws_ctx_audio);
+	    	is->sws_ctx_audio = NULL;
+	    }
+
+	    if (is->audio_player) {
+	    	shutdown(&is->audio_player);
+	    	is->audio_player = NULL;
+	    }
+
+	    //is->audio_callback = NULL;
+	    is->prepared = 0;
+
+	    //is->headers[0] = '\0';
+
+	    //is->fd = -1;
+	    //is->offset = 0;
+
+	    is->prepare_sync = 0;
+
+	    //is->notify_callback = NULL;
+	    //is->clazz = NULL;
+
+	    is->read_pause_return = 0;
+
+	    is->paused = 0;
+	    is->last_paused = -1;
+	    is->player_started = 0;
+
+	    if (is->tid) {
+	    	free(is->tid);
+	    	is->tid = NULL;
+	    }
+
+	    av_free_packet(&is->flush_pkt);
+	}
+}
+
+int seekTo_l(VideoState **ps, int msec) {
+	VideoState *is = *ps;
+
+	if (is) {
+		stream_seek(is, msec * 1000, msec * 1000, 0);
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int prepareAsync_l(VideoState **ps) {
+	VideoState *is = *ps;
+
+    if (is != 0) {
+    	is->pictq_mutex = SDL_CreateMutex();
+        is->pictq_cond = SDL_CreateCond();
+
+    	//is->event_tid = malloc(sizeof(*(is->event_tid)));
+    	//pthread_create(is->event_tid, NULL, (void *) &event_thread, is);
+
+    	// uncomment for video
+    	schedule_refresh(is, 40);
+
+    	is->av_sync_type = DEFAULT_AV_SYNC_TYPE;
+    	is->parse_tid = malloc(sizeof(*(is->parse_tid)));
+
+    	if(!is->parse_tid) {
+    	    av_free(is);
+    	    return UNKNOWN_ERROR;
+    	}
+
+    	pthread_create(is->parse_tid, NULL, (void *) &decode_thread, is);
+
+    	av_init_packet(&is->flush_pkt);
+    	is->flush_pkt.data = (unsigned char *)"FLUSH";
+
+    	return NO_ERROR;
+    }
+    return INVALID_OPERATION;
+}
+
+int getDuration_l(VideoState **ps, int *msec) {
+	VideoState *is = *ps;
+
+	if (is) {
+		if (is->pFormatCtx && (is->pFormatCtx->duration != AV_NOPTS_VALUE)) {
+			*msec = (is->pFormatCtx->duration / AV_TIME_BASE) * 1000;
+		} else {
+			*msec = 0;
+		}
+		return NO_ERROR;
+	}
+
+	return INVALID_OPERATION;
+}
+
+int setMetadataFilter(VideoState **ps, char *allow[], char *block[]) {
+	return 0;
+}
+
+int getMetadata(VideoState **ps, AVDictionary **metadata) {
+	return 0;
+}
+
+int main(int argc, char *argv[]) {
+
+}
+
+//int main(int argc, char *argv[]) {
+//  SDL_Event       event;
+//  //double          pts;
+//  VideoState      *is;
+//
+//  is = av_mallocz(sizeof(VideoState));
+//
+//  if(argc < 2) {
+//    fprintf(stderr, "Usage: test <file>\n");
+//    exit(1);
+//  }
+//  // Register all formats and codecs
+//  av_register_all();
+//
+//  av_strlcpy(is->filename, argv[1], 1024);
+//
+//  setDataSourceURI(&is, "/Users/wseemann/Desktop/BigBuckBunny_320x180.mp4", NULL);
+//  prepare(&is);
+//  start(&is);
+//
+//  for(;;) {
+//    double incr, pos;
+//    SDL_WaitEvent(&event);
+//    switch(event.type) {
+//    case SDL_KEYDOWN:
+//      switch(event.key.keysym.sym) {
+//      case SDLK_LEFT:
+//	incr = -10.0;
+//	goto do_seek;
+//      case SDLK_RIGHT:
+//	incr = 10.0;
+//	goto do_seek;
+//      case SDLK_UP:
+//	incr = 60.0;
+//	goto do_seek;
+//      case SDLK_DOWN:
+//	incr = -60.0;
+//	goto do_seek;
+//      do_seek:
+//	/*if(global_video_state) {
+//	  pos = get_master_clock(global_video_state);
+//	  pos += incr;
+//	  stream_seek(global_video_state, (int64_t)(pos * AV_TIME_BASE), incr);
+//	}*/
+//	break;
+//      default:
+//	break;
+//      }
+//      break;
+//    case FF_QUIT_EVENT:
+//    case SDL_QUIT:
+//      is->quit = 1;
+//      /*
+//       * If the video has finished playing, then both the picture and
+//       * audio queues are waiting for more data.  Make them stop
+//       * waiting and terminate normally.
+//       */
+//      SDL_CondSignal(is->audioq.cond);
+//      SDL_CondSignal(is->videoq.cond);
+//      SDL_Quit();
+//      exit(0);
+//      break;
+//    case FF_ALLOC_EVENT:
+//      //alloc_picture(event.user.data1);
+//      break;
+//    case FF_REFRESH_EVENT:
+//      video_refresh_timer(event.user.data1);
+//      break;
+//    default:
+//      break;
+//    }
+//  }
+//  return 0;
+//}

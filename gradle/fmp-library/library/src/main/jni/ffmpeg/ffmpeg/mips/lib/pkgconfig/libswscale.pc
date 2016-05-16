@@ -1,0 +1,14 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=/Users/wseemann/FFmpegMediaPlayer/rewrite/gradle/fmp-library/library/src/main/ffmpeg/ffmpeg-android/mips/lib
+includedir=/Users/wseemann/FFmpegMediaPlayer/rewrite/gradle/fmp-library/library/src/main/ffmpeg/ffmpeg-android/mips/include
+
+Name: libswscale
+Description: FFmpeg image rescaling library
+Version: 3.1.101
+Requires: 
+Requires.private: libavutil >= 54.31.100
+Conflicts:
+Libs: -L${libdir}  -lswscale 
+Libs.private: -lm
+Cflags: -I${includedir}

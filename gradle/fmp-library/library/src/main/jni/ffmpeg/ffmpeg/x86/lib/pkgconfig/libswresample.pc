@@ -1,0 +1,14 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=/Users/wseemann/FFmpegMediaPlayer/rewrite/gradle/fmp-library/library/src/main/ffmpeg/ffmpeg-android/i686/lib
+includedir=/Users/wseemann/FFmpegMediaPlayer/rewrite/gradle/fmp-library/library/src/main/ffmpeg/ffmpeg-android/i686/include
+
+Name: libswresample
+Description: FFmpeg audio resampling library
+Version: 1.2.101
+Requires: 
+Requires.private: libavutil >= 54.31.100
+Conflicts:
+Libs: -L${libdir}  -lswresample 
+Libs.private: -lm
+Cflags: -I${includedir}

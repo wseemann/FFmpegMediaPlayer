@@ -1,7 +1,7 @@
 /*
  * FFmpegMediaPlayer: A unified interface for playing audio files and streams.
  *
- * Copyright 2014 William Seemann
+ * Copyright 2016 William Seemann
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,14 @@
 #ifndef MEDIAPLAYER_H
 #define MEDIAPLAYER_H
 
+#include <android/native_window_jni.h>
+
 #include <Errors.h>
 #include <pthread.h>
 
 extern "C" {
     #include "ffmpeg_mediaplayer.h"
 }
-
-using namespace std;
 
 /*enum media_event_type {
     MEDIA_NOP               = 0, // interface test message
@@ -58,12 +58,7 @@ enum media_player_states {
 class MediaPlayerListener
 {
 public:
-    virtual void notify(int msg, int ext1, int ext2, int fromThread) = 0;
-    virtual int initAudioTrack(int streamType, int sampleRateInHz, int channelConfig, int sessionId, int fromThread) = 0;
-    virtual void writeAudio(int16_t *samples, int frame_size_ptr, int fromThread) = 0;
-    virtual int setVolume(float leftVolume, float rightVolume) = 0;
-    virtual int attachAuxEffect(int effectId) = 0;
-    virtual int setAuxEffectSendLevel(float level) = 0;
+    virtual void notify(int msg, int ext1, int ext2) = 0;
 };
 
 class MediaPlayer
@@ -77,7 +72,7 @@ public:
             status_t        setDataSource(int fd, int64_t offset, int64_t length);
             status_t        setMetadataFilter(char *allow[], char *block[]);
             status_t        getMetadata(bool update_only, bool apply_filter, AVDictionary **metadata);
-            //status_t        setVideoSurface(const sp<Surface>& surface);
+            status_t        setVideoSurface(ANativeWindow* native_window);
             status_t        setListener(MediaPlayerListener *listener);
             MediaPlayerListener * getListener();
             status_t        prepare();
@@ -96,22 +91,21 @@ public:
             status_t        setLooping(int loop);
             bool            isLooping();
             status_t        setVolume(float leftVolume, float rightVolume);
-            void            notify(int msg, int ext1, int ext, int fromThread);
+            void            notify(int msg, int ext1, int ext);
             status_t        setAudioSessionId(int sessionId);
             int             getAudioSessionId();
             status_t        setAuxEffectSendLevel(float level);
             int             attachAuxEffect(int effectId);
             status_t        setNextMediaPlayer(const MediaPlayer* player);
-            int             initAudioTrack(int sampleRateInHz, int channelConfig, int fromThread);
-            void            writeAudio(int16_t *samples, int frame_size_ptr, int fromThread);
 
+    VideoState*                      state;
         
 private:
             void            clear_l();
             status_t        seekTo_l(int msec);
             status_t        prepareAsync_l();
             status_t        getDuration_l(int *msec);
-            status_t        setDataSource(State *state);
+            status_t        setDataSource(VideoState *state);
         
     //sp<IMediaPlayer>            mPlayer;
     pthread_mutex_t*            mLock;
@@ -133,7 +127,6 @@ private:
     int                         mVideoHeight;
     int                         mAudioSessionId;
     float                       mSendLevel;
-    State*                      state;
     };
 
 #endif // MEDIAPLAYER_H
