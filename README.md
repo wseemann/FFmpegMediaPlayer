@@ -159,7 +159,7 @@ License
 ```
 FFmpegMediaPlayer: A unified interface for playing audio files and streams.
 
-Copyright 2014 William Seemann
+Copyright 2016s William Seemann
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
