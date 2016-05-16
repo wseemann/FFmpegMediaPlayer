@@ -31,17 +31,15 @@ Supported formats (audio and video):
 Additional support for:
 * ICY Metadata (SHOUTcast metadata)
 
-Using FMP in your application
+Using FMP in your application (Android Studio)
 ------------
 
-Extract and copy the following JAR file and prebuilt native libraries into your projects "libs" folder:
-
-https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-library/prebuilt-libs.tar.gz.
+[Prebuilt AARs] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.1/prebuilt-aars.zip)
 
 Demo Application
 ------------
 
-A sample application that makes use of FFmpegMediaPlayer can be downloaded at: https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-demo/FMPDemo.apk. Note: The sample application is compiled with support for ALL available formats. This results in a larger library and APK. FFmpeg can be recompiled with a subset of codecs enabled for those wanting a smaller size.
+A sample application that makes use of FFmpegMediaPlayer can be downloaded [here] (https://github.com/wseemann/FFmpegMediaPlayer/blob/master/FMPDemo.apk?raw=true). Note: The sample application is compiled with support for ALL available formats. This results in a larger library and APK. FFmpeg can be recompiled with a subset of codecs enabled for those wanting a smaller size.
 
 Installation
 ------------
