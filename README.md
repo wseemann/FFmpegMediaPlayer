@@ -25,7 +25,7 @@ Key Features:
 Supported protocols:
 * file, http, https, mms, mmsh and rtmp
 
-Supported formats (audio only):
+Supported formats (audio and video):
 * aac, acc+, avi, flac, mp2, mp3, mp4, ogg, 3gp and more!
 
 Additional support for:
