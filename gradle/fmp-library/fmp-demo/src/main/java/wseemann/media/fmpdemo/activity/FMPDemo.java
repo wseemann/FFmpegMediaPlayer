@@ -25,15 +25,20 @@ import wseemann.media.fmpdemo.service.IMediaPlaybackService;
 import wseemann.media.fmpdemo.service.MusicUtils;
 import wseemann.media.fmpdemo.service.MusicUtils.ServiceToken;
 import wseemann.media.fmpdemo.R;
+
+import android.Manifest;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.content.ContextCompat;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -41,17 +46,17 @@ import android.widget.EditText;
 
 public class FMPDemo extends FragmentActivity implements ServiceConnection {
 
-    private IMediaPlaybackService mService = null;
+	private IMediaPlaybackService mService = null;
 	private ServiceToken mToken;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_fmpdemo);
-		
+
 		final EditText uriText = (EditText) findViewById(R.id.uri);
     	// Uncomment for debugging
-    	//uriText.setText("http://...");
+    	//uriText.setText("");
     	
     	Intent intent = getIntent();
     	
@@ -105,7 +110,7 @@ public class FMPDemo extends FragmentActivity implements ServiceConnection {
 				}
 			}
 		});
-    	
+
         mToken = MusicUtils.bindToService(this, this);
 	}
 	
