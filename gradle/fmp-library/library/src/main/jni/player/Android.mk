@@ -4,14 +4,15 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := ffmpeg_mediaplayer_jni
 SDL_PATH := ../SDL
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/$(SDL_PATH)/include
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/$(SDL_PATH)/include $(LOCAL_PATH)/$(SDL_PATH)/src/video/android
 LOCAL_CFLAGS := 
-LOCAL_SRC_FILES := SDL_android_main.c \
+LOCAL_SRC_FILES := $(SDL_PATH)/src/main/android/SDL_android_main.c \
                wseemann_media_MediaPlayer.cpp \
 		mediaplayer.cpp \
 		ffmpeg_mediaplayer.c \
                audioplayer.c \
-               videoplayer.c
+               videoplayer.c \
+               ffmpeg_utils.c
 LOCAL_SHARED_LIBRARIES := SDL2 libswresample libswscale libavcodec libavformat libavutil
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/../ffmpeg/ffmpeg/$(TARGET_ARCH_ABI)/include
 # for native audio

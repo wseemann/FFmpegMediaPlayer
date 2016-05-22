@@ -43,6 +43,8 @@
 #include <unistd.h>
 #include <Errors.h>
 
+#include <ffmpeg_utils.h>
+
 #define SDL_AUDIO_BUFFER_SIZE 1024
 #define MAX_AUDIO_FRAME_SIZE 192000
 #define MAX_AUDIOQ_SIZE (5 * 16 * 1024)

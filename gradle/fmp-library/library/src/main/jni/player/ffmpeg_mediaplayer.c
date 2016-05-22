@@ -927,7 +927,6 @@ int decode_interrupt_cb(void *opaque) {
 int decode_thread(void *arg) {
 
   VideoState *is = (VideoState *)arg;
-  AVFormatContext *pFormatCtx = NULL;
   AVPacket pkt1, *packet = &pkt1;
 
   AVDictionary *io_dict = NULL;
@@ -943,6 +942,20 @@ int decode_thread(void *arg) {
   is->videoStream=-1;
   is->audioStream=-1;
 
+  AVDictionary *options = NULL;
+  av_dict_set(&options, "icy", "1", 0);
+  av_dict_set(&options, "user-agent", "FFmpegMediaPlayer", 0);
+    
+  if (is->headers) {
+    av_dict_set(&options, "headers", is->headers, 0);
+  }
+
+  if (is->offset > 0) {
+    is->pFormatCtx = avformat_alloc_context();
+    is->pFormatCtx->skip_initial_bytes = is->offset;
+    //is->pFormatCtx->iformat = av_find_input_format("mp3");
+  }
+
   // will interrupt blocking functions if we quit!
   callback.callback = decode_interrupt_cb;
   callback.opaque = is;
@@ -953,28 +966,28 @@ int decode_thread(void *arg) {
   }
 
   // Open video file
-  if(avformat_open_input(&pFormatCtx, is->filename, NULL, NULL)!=0)
+  if(avformat_open_input(&is->pFormatCtx, is->filename, NULL, &options)!=0)
     return -1; // Couldn't open file
 
-  is->pFormatCtx = pFormatCtx;
-
   // Retrieve stream information
-  if(avformat_find_stream_info(pFormatCtx, NULL)<0)
+  if(avformat_find_stream_info(is->pFormatCtx, NULL)<0)
     return -1; // Couldn't find stream information
 
   // Dump information about file onto standard error
-  av_dump_format(pFormatCtx, 0, is->filename, 0);
+  av_dump_format(is->pFormatCtx, 0, is->filename, 0);
 
   // Find the first video stream
-  for(i=0; i<pFormatCtx->nb_streams; i++) {
-    if(pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_VIDEO &&
+  for(i=0; i<is->pFormatCtx->nb_streams; i++) {
+    if(is->pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_VIDEO &&
        video_index < 0) {
       video_index=i;
     }
-    if(pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_AUDIO &&
+    if(is->pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_AUDIO &&
        audio_index < 0) {
       audio_index=i;
     }
+      
+    set_codec(is->pFormatCtx, i);
   }
   if(audio_index >= 0) {
     stream_component_open(is, audio_index);
@@ -989,6 +1002,11 @@ int decode_thread(void *arg) {
     notify(is, MEDIA_ERROR, 0, 0);
     return 0;
   }
+
+  set_rotation(is->pFormatCtx, is->audio_st, is->video_st);
+  set_framerate(is->pFormatCtx, is->audio_st, is->video_st);
+  set_filesize(is->pFormatCtx);
+  set_chapter_count(is->pFormatCtx);
 
   // main decode loop
 
@@ -1224,8 +1242,6 @@ void disconnect(VideoState **ps) {
 
 int setDataSourceURI(VideoState **ps, const char *url, const char *headers) {
 	printf("setDataSource\n");
-
-    SDL_Init(SDL_INIT_TIMER);
 
 	if (!url) {
 		return INVALID_OPERATION;
@@ -1676,8 +1692,12 @@ void clear_l(VideoState **ps) {
 
 	    //is->headers[0] = '\0';
 
-	    //is->fd = -1;
-	    //is->offset = 0;
+	    if (is->fd != -1) {
+		    close(is->fd);
+        }
+
+	    is->fd = -1;
+	    is->offset = 0;
 
 	    is->prepare_sync = 0;
 

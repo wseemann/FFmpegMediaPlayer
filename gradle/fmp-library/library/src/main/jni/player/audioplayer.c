@@ -83,6 +83,8 @@ void createBufferQueueAudioPlayer(AudioPlayer **ps, void *state, int numChannels
     
     if (numChannels == 2) {
         channelMask = SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT;
+    } else if (numChannels == 3) {
+        channelMask = SL_SPEAKER_FRONT_CENTER;
     } else {
         channelMask = SL_SPEAKER_FRONT_CENTER;
     }
