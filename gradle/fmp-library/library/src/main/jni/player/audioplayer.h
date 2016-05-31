@@ -57,8 +57,8 @@ typedef struct AudioPlayer {
     
 	void (*bqPlayerCallback) (SLAndroidSimpleBufferQueueItf, void *);
     
-    //SDL_Surface     *screen;
     void (*audio_callback) (void *userdata, uint8_t *stream, int len);
+    uint8_t *buffer;
 } AudioPlayer;
 
 void createEngine(AudioPlayer **ps);

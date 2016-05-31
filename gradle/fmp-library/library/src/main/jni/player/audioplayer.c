@@ -28,14 +28,19 @@
 void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void *context)
 {
     VideoState *is = (VideoState *)context;
+
+    AudioPlayer *player = &is->audio_player;
+
+    if (player->buffer != NULL) {
+        free(player->buffer);
+        player->buffer = NULL;
+    }
     
     int len = 4096;
-    uint8_t *stream = malloc(len);
+    player->buffer = malloc(len);
     
-    is->audio_callback(context, stream, len);
-    enqueue(&is->audio_player, (int16_t *) stream, len);
-    
-    free(stream);
+    is->audio_callback(context, player->buffer, len);
+    enqueue(&is->audio_player, (int16_t *) player->buffer, len);
 }
 
 // create the engine and output mix objects
@@ -255,5 +260,11 @@ void shutdown(AudioPlayer **ps)
         (*player->engineObject)->Destroy(player->engineObject);
         player->engineObject = NULL;
         player->engineEngine = NULL;
+    }
+    
+    // delete the audio buffer
+    if (player->buffer != NULL) {
+        free(player->buffer);
+        player->buffer = NULL;
     }
 }
