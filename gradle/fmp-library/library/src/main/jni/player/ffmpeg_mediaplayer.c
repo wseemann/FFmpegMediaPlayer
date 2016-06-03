@@ -893,6 +893,10 @@ int stream_component_open(VideoState *is, int stream_index) {
     packet_queue_init(&is->audioq);
     break;
   case AVMEDIA_TYPE_VIDEO:
+    if (is->native_window == NULL) {
+        return -1;
+    }
+          
     is->videoStream = stream_index;
     is->video_st = pFormatCtx->streams[stream_index];
 
