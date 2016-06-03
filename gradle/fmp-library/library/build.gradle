@@ -4,31 +4,37 @@ android {
     android.packageBuildConfig = false
 
     compileSdkVersion 23
-    buildToolsVersion "21.1.2"
+    buildToolsVersion "23.0.2"
 
     def mkfile = "NDK_APPLICATION_MK=Application.mk"
     def aarname = "all-fmp"
+    def platform = "TARGET_PLATFORM=android-21"
 
     //def mkfile = "NDK_APPLICATION_MK=ARMApplication.mk"
     //def aarname = "arm-fmp"
+    //def platform = "TARGET_PLATFORM=android-12"
 
     //def mkfile = "NDK_APPLICATION_MK=ARMv7Application.mk"
     //def aarname = "armv7-fmp"
+    //def platform = "TARGET_PLATFORM=android-12"
 
     //def mkfile = "NDK_APPLICATION_MK=x86Application.mk"
     //def aarname = "x86-fmp"
+    //def platform = "TARGET_PLATFORM=android-12"
 
     //def mkfile = "NDK_APPLICATION_MK=MIPSApplication.mk"
     //def aarname = "mips-fmp"
+    //def platform = "TARGET_PLATFORM=android-12"
 
     //def mkfile = "NDK_APPLICATION_MK=x86_64Application.mk"
     //def aarname = "x86_64-fmmr"
+    //def platform = "TARGET_PLATFORM=android-21"
 
     defaultConfig {
-        minSdkVersion 9
+        minSdkVersion 12
         targetSdkVersion 23
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 3
+        versionName "1.0.2"
     }
     buildTypes {
         release {
@@ -49,10 +55,11 @@ android {
     task buildNative(type: Exec, description: 'Compile JNI source via NDK') {
         def ndkDir = android.ndkDirectory
         commandLine "$ndkDir/ndk-build",
+                mkfile,
                 '-C', file('src/main/jni').absolutePath, // Change src/main/jni the relative path to your jni source
                 '-j', Runtime.runtime.availableProcessors(),
                 'all',
-                'TARGET_PLATFORM=android-21'
+                platform
                 'NDK_DEBUG=1'
     }
 

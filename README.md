@@ -34,7 +34,15 @@ Additional support for:
 Using FMP in your application (Android Studio)
 ------------
 
-[Prebuilt AARs] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.1/prebuilt-aars.zip)
+Add the following maven dependency to your project's `build.gradle` file:
+
+    dependencies {
+        compile 'com.github.wseemann:FFmpegMediaPlayer:1.0.2'
+    }
+
+or, if your application supports individual architectures extract the appropriate AAR file into you projects "libs" folder:
+
+[Prebuilt AARs] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.2/prebuilt-aars.zip)
 
 Demo Application
 ------------
@@ -151,7 +159,7 @@ Sample code:
 
 FFmpeg
 -----------
-This software uses code of <a href=http://ffmpeg.org>FFmpeg</a> licensed under the <a href=http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>LGPLv2.1</a> and its source can be downloaded <a href=https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-library/ffmpeg-2.1-android-2013-11-13.tar.gz>here</a>.
+This software uses code from <a href=http://ffmpeg.org>FFmpeg</a> licensed under the <a href=http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>LGPLv2.1</a> and its source can be downloaded <a href=https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-library/ffmpeg-2.1-android-2013-11-13.tar.gz>here</a>. It also uses code from <a href=https://www.libsdl.org>SDL</a> licensed under the <a href=http://www.gzip.org/zlib/zlib_license.html>zlib license</a>.
 
 License
 ------------
