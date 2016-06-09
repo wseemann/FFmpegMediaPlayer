@@ -91,6 +91,7 @@ public class VideoPlayerActivity extends FragmentActivity {
                     }
                     mMediaPlayer.prepareAsync();
                 } catch (IOException ex) {
+                    ex.printStackTrace();
                 }
             }
         });
@@ -140,12 +141,21 @@ public class VideoPlayerActivity extends FragmentActivity {
 
         mMediaPlayer = new FFmpegMediaPlayer();
         mMediaPlayer.setOnPreparedListener(mOnPreparedListener);
+        mMediaPlayer.setOnErrorListener(mOnErrorListener);
     }
 
     private FFmpegMediaPlayer.OnPreparedListener mOnPreparedListener = new FFmpegMediaPlayer.OnPreparedListener() {
         @Override
         public void onPrepared(FFmpegMediaPlayer mp) {
             mp.start();
+        }
+    };
+
+    private FFmpegMediaPlayer.OnErrorListener mOnErrorListener = new FFmpegMediaPlayer.OnErrorListener() {
+        @Override
+        public boolean onError(FFmpegMediaPlayer mp, int what, int extra) {
+            Log.d("TAG", "---- ERROR " + what);
+            return true;
         }
     };
 

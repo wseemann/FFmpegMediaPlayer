@@ -46,15 +46,6 @@
                 <data android:mimeType="audio/*" />
                 <data android:mimeType="video/*" />
             </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-
-                <data android:scheme="file" />
-                <data android:mimeType="audio/*" />
-                <data android:mimeType="video/*" />
-            </intent-filter>
         </activity>
         <activity
             android:name=".activity.MediaPlayerActivity"
@@ -77,10 +68,28 @@
             android:exported="false" />
 
         <activity
-            android:name=".activity.FMPDemo" />
+            android:name=".activity.FMPDemo">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:scheme="file" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+        </activity>
 
         <activity
-            android:name=".activity.VideoPlayerActivity" />
+            android:name=".activity.VideoPlayerActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:scheme="file" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
