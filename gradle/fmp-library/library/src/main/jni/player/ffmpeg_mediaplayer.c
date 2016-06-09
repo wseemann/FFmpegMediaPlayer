@@ -99,7 +99,7 @@ static void packet_queue_flush(PacketQueue *q) {
   SDL_LockMutex(q->mutex);
   for(pkt = q->first_pkt; pkt != NULL; pkt = pkt1) {
     pkt1 = pkt->next;
-    av_free_packet(&pkt->pkt);
+    av_packet_unref(&pkt->pkt);
     av_freep(&pkt);
   }
   q->last_pkt = NULL;
@@ -344,7 +344,7 @@ int audio_decode_frame(VideoState *is, double *pts_ptr) {
       return data_size;
     }
     if(pkt->data)
-      av_free_packet(pkt);
+      av_packet_unref(pkt);
 
     if(is->quit) {
       return -1;
@@ -782,7 +782,7 @@ void convert_image(VideoState *state, AVCodecContext *pCodecCtx, AVFrame *pFrame
 	//}
 
 	if (ret < 0 || !*got_packet_ptr) {
-		av_free_packet(avpkt);
+		av_packet_unref(avpkt);
 	}
 }
 
@@ -829,7 +829,7 @@ int video_thread(void *arg) {
 	break;
       }
     }
-    av_free_packet(packet);
+    av_packet_unref(packet);
   }
   //av_free(pFrame);
   return 0;
@@ -966,16 +966,23 @@ int decode_thread(void *arg) {
   if (avio_open2(&is->io_context, is->filename, 0, &callback, &io_dict))
   {
     fprintf(stderr, "Unable to open I/O for %s\n", is->filename);
+    notify(is, MEDIA_ERROR, 0, 0);
     return -1;
   }
 
   // Open video file
   if(avformat_open_input(&is->pFormatCtx, is->filename, NULL, &options)!=0)
+  {
+	notify(is, MEDIA_ERROR, 0, 0);
     return -1; // Couldn't open file
+  }
 
   // Retrieve stream information
   if(avformat_find_stream_info(is->pFormatCtx, NULL)<0)
+  {
+	notify(is, MEDIA_ERROR, 0, 0);
     return -1; // Couldn't find stream information
+  }
 
   // Dump information about file onto standard error
   av_dump_format(is->pFormatCtx, 0, is->filename, 0);
@@ -1083,7 +1090,7 @@ int decode_thread(void *arg) {
     } else if(packet->stream_index == is->audioStream) {
       packet_queue_put(is, &is->audioq, packet);
     } else {
-      av_free_packet(packet);
+      av_packet_unref(packet);
     }
 
 	if (eof) {
@@ -1165,7 +1172,7 @@ void disconnect(VideoState **ps) {
 
 		AVPacket *pkt = &is->audio_pkt;
 		if (pkt->data) {
-			av_free_packet(pkt);
+			av_packet_unref(pkt);
 		}
 
 		if (is->videoq.initialized == 1) {
@@ -1237,7 +1244,7 @@ void disconnect(VideoState **ps) {
 			is->tid = NULL;
 		}
 
-	    av_free_packet(&is->flush_pkt);
+	    av_packet_unref(&is->flush_pkt);
 
 		av_freep(&is);
 		*ps = NULL;
@@ -1603,7 +1610,7 @@ void clear_l(VideoState **ps) {
 
   	    AVPacket *pkt = &is->audio_pkt;
 	    if (pkt->data) {
-	    	av_free_packet(pkt);
+	    	av_packet_unref(pkt);
 	    }
 
 	    is->audio_pkt_data = NULL;
@@ -1719,7 +1726,7 @@ void clear_l(VideoState **ps) {
 	    	is->tid = NULL;
 	    }
 
-	    av_free_packet(&is->flush_pkt);
+	    av_packet_unref(&is->flush_pkt);
 	}
 }
 

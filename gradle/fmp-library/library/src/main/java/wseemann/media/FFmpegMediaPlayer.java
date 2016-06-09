@@ -955,10 +955,12 @@ public class FFmpegMediaPlayer
 
         final File file = new File(path);
         if (file.exists()) {
-            FileInputStream is = new FileInputStream(file);
-            FileDescriptor fd = is.getFD();
-            setDataSource(fd);
-            is.close();
+            //FileInputStream is = new FileInputStream(file);
+            //FileDescriptor fd = is.getFD();
+            //setDataSource(fd);
+            //is.close();
+
+            _setDataSource(path, keys, values);
         } else {
             _setDataSource(path, keys, values);
         }
