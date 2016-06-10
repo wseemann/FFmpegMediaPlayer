@@ -25,6 +25,8 @@
 #include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
 
+#include <ffmpeg_mediaplayer.h>
+
 #include <android/native_window_jni.h>
 
 typedef struct VideoPlayer {
@@ -36,8 +38,8 @@ void createScreen(VideoPlayer **ps, void *surface, int width, int height);
 struct SwsContext *createScaler(VideoPlayer **ps, AVCodecContext *codec);
 void *createBmp(VideoPlayer **ps, int width, int height);
 void destroyBmp(VideoPlayer **ps, void *bmp);
-void updateBmp(VideoPlayer **ps, struct SwsContext *sws_ctx, void *bmp, AVFrame *pFrame, int width, int height);
-void displayBmp(VideoPlayer **ps, void *bmp);
+void updateBmp(VideoPlayer **ps, struct SwsContext *sws_ctx, AVCodecContext *pCodecCtx, void *bmp, AVFrame *pFrame, int width, int height);
+void displayBmp(VideoPlayer **ps, void *bmp, AVCodecContext *pCodecCtx, int width, int height);
 void shutdownVideoEngine(VideoPlayer **ps);
 
 #endif /* VIDEOPLAYER_H_ */

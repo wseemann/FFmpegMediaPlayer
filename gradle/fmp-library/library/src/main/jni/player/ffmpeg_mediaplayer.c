@@ -21,11 +21,6 @@
 //#include <android/log.h>
 #include <ffmpeg_mediaplayer.h>
 
-const int TARGET_IMAGE_FORMAT = AV_PIX_FMT_RGBA; //AV_PIX_FMT_RGB24;
-const int TARGET_IMAGE_CODEC = AV_CODEC_ID_PNG;
-
-void convert_image(VideoState *state, AVCodecContext *pCodecCtx, AVFrame *pFrame, AVPacket *avpkt, int *got_packet_ptr, int width, int height);
-
 void packet_queue_init(PacketQueue *q) {
   memset(q, 0, sizeof(PacketQueue));
   q->initialized = 1;
@@ -447,15 +442,8 @@ void video_display(VideoState *is) {
     rect.h = h;
     SDL_DisplayYUVOverlay(vp->bmp, &rect);*/
 
-    //displayBmp(&is->video_player, vp->bmp);
-
-	AVPacket packet;
-	av_init_packet(&packet);
-	packet.data = NULL;
-	packet.size = 0;
-	int got_packet = 0;
-    convert_image(is, is->video_st->codec, vp->bmp, &packet, &got_packet, -1, -1);
-    //av_free(vp->bmp);
+    displayBmp(&is->video_player, vp->bmp, is->video_st->codec, is->video_st->codec->width, is->video_st->codec->height);
+    free(vp->bmp->buffer);
   }
 }
 
@@ -602,8 +590,7 @@ int queue_picture(VideoState *is, AVFrame *pFrame, double pts) {
     //dst_pix_fmt = PIX_FMT_YUV420P;
     /* point pict at the queue */
 
-	vp->bmp = pFrame;
-    //updateBmp(&is->video_player, is->sws_ctx, vp->bmp, pFrame, is->video_st->codec->width, is->video_st->codec->height);
+    updateBmp(&is->video_player, is->sws_ctx, is->video_st->codec, vp->bmp, pFrame, is->video_st->codec->width, is->video_st->codec->height);
 
     vp->pts = pts;
 
@@ -651,141 +638,6 @@ int our_get_buffer(struct AVCodecContext *c, AVFrame *pic, int flags) {
   return ret;
 }
 
-void convert_image(VideoState *state, AVCodecContext *pCodecCtx, AVFrame *pFrame, AVPacket *avpkt, int *got_packet_ptr, int width, int height) {
-	AVCodecContext *codecCtx;
-	AVCodec *codec;
-	AVFrame *frame;
-
-	*got_packet_ptr = 0;
-
-	if (width == -1) {
-		width = pCodecCtx->width;
-	}
-
-	if (height == -1) {
-		height = pCodecCtx->height;
-	}
-
-	codec = avcodec_find_encoder(TARGET_IMAGE_CODEC);
-	if (!codec) {
-	    printf("avcodec_find_decoder() failed to find decoder\n");
-		goto fail;
-	}
-
-    codecCtx = avcodec_alloc_context3(codec);
-	if (!codecCtx) {
-		printf("avcodec_alloc_context3 failed\n");
-		goto fail;
-	}
-
-	codecCtx->bit_rate = pCodecCtx->bit_rate;
-	//codecCtx->width = pCodecCtx->width;
-	//codecCtx->height = pCodecCtx->height;
-	codecCtx->width = width;
-	codecCtx->height = height;
-	codecCtx->pix_fmt = TARGET_IMAGE_FORMAT;
-	codecCtx->codec_type = AVMEDIA_TYPE_VIDEO;
-	codecCtx->time_base.num = pCodecCtx->time_base.num;
-	codecCtx->time_base.den = pCodecCtx->time_base.den;
-
-	if (!codec || avcodec_open2(codecCtx, codec, NULL) < 0) {
-	  	printf("avcodec_open2() failed\n");
-		goto fail;
-	}
-
-	frame = av_frame_alloc();
-
-	if (!frame) {
-		goto fail;
-	}
-
-	// Determine required buffer size and allocate buffer
-	int numBytes = avpicture_get_size(TARGET_IMAGE_FORMAT, codecCtx->width, codecCtx->height);
-	void * buffer = (uint8_t *) av_malloc(numBytes * sizeof(uint8_t));
-
-	// set the frame parameters
-	frame->format = TARGET_IMAGE_FORMAT;
-    frame->width = codecCtx->width;
-    frame->height = codecCtx->height;
-
-    avpicture_fill(((AVPicture *)frame),
-    		buffer,
-    		TARGET_IMAGE_FORMAT,
-    		codecCtx->width,
-    		codecCtx->height);
-
-	/*struct SwsContext *scalerCtx = sws_getContext(pCodecCtx->width,
-			pCodecCtx->height,
-			pCodecCtx->pix_fmt,
-			//pCodecCtx->width,
-			//pCodecCtx->height,
-			width,
-			height,
-			TARGET_IMAGE_FORMAT,
-	        SWS_BILINEAR,
-	        NULL,
-	        NULL,
-	        NULL);
-
-	if (!scalerCtx) {
-		printf("sws_getContext() failed\n");
-		goto fail;
-	}*/
-
-    sws_scale(state->sws_ctx,
-    		(const uint8_t * const *) pFrame->data,
-    		pFrame->linesize,
-    		0,
-    		pFrame->height,
-    		frame->data,
-    		frame->linesize);
-
-	int ret = avcodec_encode_video2(codecCtx, avpkt, frame, got_packet_ptr);
-
-	if (ret >= 0 && state->native_window) {
-		ANativeWindow_setBuffersGeometry(state->native_window, width, height, WINDOW_FORMAT_RGBA_8888);
-
-		ANativeWindow_Buffer windowBuffer;
-
-		if (ANativeWindow_lock(state->native_window, &windowBuffer, NULL) == 0) {
-			int h = 0;
-
-			for (h = 0; h < height; h++)  {
-			  memcpy(windowBuffer.bits + h * windowBuffer.stride * 4,
-			         buffer + h * frame->linesize[0],
-			         width*4);
-			}
-
-			ANativeWindow_unlockAndPost(state->native_window);
-		}
-	}
-
-	if (ret < 0) {
-		*got_packet_ptr = 0;
-	}
-
-	// TODO is this right?
-	fail:
-    av_free(frame);
-
-    if (buffer) {
-    	free(buffer);
-    }
-
-	if (codecCtx) {
-		avcodec_close(codecCtx);
-	    av_free(codecCtx);
-	}
-
-	//if (scalerCtx) {
-	//	sws_freeContext(scalerCtx);
-	//}
-
-	if (ret < 0 || !*got_packet_ptr) {
-		av_packet_unref(avpkt);
-	}
-}
-
 int video_thread(void *arg) {
   VideoState *is = (VideoState *)arg;
   AVPacket pkt1, *packet = &pkt1;
@@ -793,10 +645,9 @@ int video_thread(void *arg) {
   AVFrame *pFrame;
   double pts;
 
-  //pFrame = av_frame_alloc();
+  pFrame = av_frame_alloc();
 
   for(;;) {
-	  pFrame = av_frame_alloc();
     if(packet_queue_get(is, &is->videoq, packet, 1) < 0) {
       // means we quit getting packets
       break;
@@ -831,7 +682,7 @@ int video_thread(void *arg) {
     }
     av_packet_unref(packet);
   }
-  //av_free(pFrame);
+  av_free(pFrame);
   return 0;
 }
 int stream_component_open(VideoState *is, int stream_index) {
@@ -906,7 +757,7 @@ int stream_component_open(VideoState *is, int stream_index) {
 
     packet_queue_init(&is->videoq);
 
-    createScreen(&is->video_player, NULL, is->video_st->codec->width, is->video_st->codec->height);
+    createScreen(&is->video_player, is->native_window, is->video_st->codec->width, is->video_st->codec->height);
 
     is->video_tid = malloc(sizeof(*(is->video_tid)));
 	// uncomment for video

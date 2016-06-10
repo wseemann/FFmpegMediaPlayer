@@ -95,9 +95,16 @@ typedef struct PacketQueue {
   SDL_mutex *mutex;
   SDL_cond *cond;
 } PacketQueue;
+
+typedef struct Picture {
+	int linesize;
+	void *buffer;
+} Picture;
+
 typedef struct VideoPicture {
   // uncomment for video
-  AVFrame *bmp;
+  Picture *bmp;
+  //AVFrame *bmp;
   int width, height; /* source height & width */
   int allocated;
   double pts;

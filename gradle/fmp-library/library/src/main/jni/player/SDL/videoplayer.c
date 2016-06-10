@@ -99,7 +99,7 @@ void destroyBmp(VideoPlayer **ps, void *bmp) {
 	SDL_DestroyTexture(bmp);
 }
 
-void updateBmp(VideoPlayer **ps, struct SwsContext *sws_ctx, void *bmp, AVFrame *pFrame, int width, int height) {
+void updateBmp(VideoPlayer **ps, struct SwsContext *sws_ctx, AVCodecContext *pCodecCtx, void *bmp, AVFrame *pFrame, int width, int height) {
 	VideoPlayer *is = *ps;
 
 	AVPicture pict;
@@ -126,7 +126,7 @@ void updateBmp(VideoPlayer **ps, struct SwsContext *sws_ctx, void *bmp, AVFrame 
 			is->uvPitch);
 }
 
-void displayBmp(VideoPlayer **ps, void *bmp) {
+void displayBmp(VideoPlayer **ps, void *bmp, AVCodecContext *pCodecCtx, int width, int height) {
 	VideoPlayer *is = *ps;
 
 	SDL_RenderClear(is->renderer);

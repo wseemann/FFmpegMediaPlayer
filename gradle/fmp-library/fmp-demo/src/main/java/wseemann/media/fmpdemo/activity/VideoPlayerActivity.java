@@ -40,7 +40,7 @@ public class VideoPlayerActivity extends FragmentActivity {
 
         final EditText uriText = (EditText) findViewById(R.id.uri);
         // Uncomment for debugging
-        uriText.setText("http://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4");
+        uriText.setText("http://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v");
 
         Intent intent = getIntent();
 
@@ -87,7 +87,7 @@ public class VideoPlayerActivity extends FragmentActivity {
                 try {
                     mMediaPlayer.setDataSource(uriString);
                     if (mFinalSurface != null) {
-                        mMediaPlayer.setSurface(mFinalSurface);
+                       mMediaPlayer.setSurface(mFinalSurface);
                     }
                     mMediaPlayer.prepareAsync();
                 } catch (IOException ex) {
