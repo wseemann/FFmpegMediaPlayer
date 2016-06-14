@@ -224,19 +224,6 @@ int decode_frame_from_packet(VideoState *is, AVFrame decoded_frame)
 	src_sample_fmt = decoded_frame.format;
 	dst_sample_fmt = AV_SAMPLE_FMT_S16;
 
-	av_opt_set_int(is->sws_ctx_audio, "in_channel_layout", src_ch_layout, 0);
-	av_opt_set_int(is->sws_ctx_audio, "out_channel_layout", dst_ch_layout,  0);
-	av_opt_set_int(is->sws_ctx_audio, "in_sample_rate", src_rate, 0);
-	av_opt_set_int(is->sws_ctx_audio, "out_sample_rate", dst_rate, 0);
-	av_opt_set_sample_fmt(is->sws_ctx_audio, "in_sample_fmt", src_sample_fmt, 0);
-	av_opt_set_sample_fmt(is->sws_ctx_audio, "out_sample_fmt", dst_sample_fmt,  0);
-
-	/* initialize the resampling context */
-	if ((ret = swr_init(is->sws_ctx_audio)) < 0) {
-		fprintf(stderr, "Failed to initialize the resampling context\n");
-		return -1;
-	}
-
 	/* allocate source and destination samples buffers */
 	src_nb_channels = av_get_channel_layout_nb_channels(src_ch_layout);
 	ret = av_samples_alloc_array_and_samples(&src_data, &src_linesize, src_nb_channels, src_nb_samples, src_sample_fmt, 0);
@@ -815,6 +802,25 @@ int stream_component_open(VideoState *is, int stream_index) {
 	is->sws_ctx_audio = swr_alloc();
 	if (!is->sws_ctx_audio) {
 		fprintf(stderr, "Could not allocate resampler context\n");
+		return -1;
+	}
+
+	uint64_t channel_layout = is->audio_st->codec->channel_layout;
+
+	if (channel_layout == 0) {
+		channel_layout = av_get_default_channel_layout(is->audio_st->codec->channels);
+	}
+
+	av_opt_set_int(is->sws_ctx_audio, "in_channel_layout", channel_layout, 0);
+	av_opt_set_int(is->sws_ctx_audio, "out_channel_layout", channel_layout,  0);
+	av_opt_set_int(is->sws_ctx_audio, "in_sample_rate", is->audio_st->codec->sample_rate, 0);
+	av_opt_set_int(is->sws_ctx_audio, "out_sample_rate", is->audio_st->codec->sample_rate, 0);
+	av_opt_set_sample_fmt(is->sws_ctx_audio, "in_sample_fmt", is->audio_st->codec->sample_fmt, 0);
+	av_opt_set_sample_fmt(is->sws_ctx_audio, "out_sample_fmt", AV_SAMPLE_FMT_S16,  0);
+
+	/* initialize the resampling context */
+	if ((swr_init(is->sws_ctx_audio)) < 0) {
+		fprintf(stderr, "Failed to initialize the resampling context\n");
 		return -1;
 	}
 
@@ -1608,6 +1614,11 @@ void clear_l(VideoState **ps) {
 	    	is->pictq_cond = NULL;
 	    }
 
+	    if (is->video_refresh_tid) {
+	    	free(is->video_refresh_tid);
+	    	is->video_refresh_tid = NULL;
+	    }
+
 	    if (is->parse_tid) {
 	    	free(is->parse_tid);
 	    	is->parse_tid = NULL;
@@ -1663,11 +1674,6 @@ void clear_l(VideoState **ps) {
 	    is->paused = 0;
 	    is->last_paused = -1;
 	    is->player_started = 0;
-
-	    if (is->tid) {
-	    	free(is->tid);
-	    	is->tid = NULL;
-	    }
 
 	    av_packet_unref(&is->flush_pkt);
 	}
