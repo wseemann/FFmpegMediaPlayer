@@ -151,7 +151,7 @@ typedef struct VideoState {
   SDL_cond        *pictq_cond;
   pthread_t       *parse_tid;
   pthread_t       *video_tid;
-  pthread_t       *event_tid;
+  pthread_t       *video_refresh_tid;
 
   char            filename[1024];
   int             quit;
@@ -171,7 +171,7 @@ typedef struct VideoState {
 
   int prepare_sync;
 
-  void (*notify_callback) (void*, int, int, int);
+  void (*notify_callback) (void*, int, int, int, int);
   void* clazz;
 
   int read_pause_return;
@@ -206,7 +206,7 @@ void disconnect(VideoState **ps);
 int setDataSourceURI(VideoState **ps, const char *url, const char *headers);
 int setDataSourceFD(VideoState **ps, int fd, int64_t offset, int64_t length);
 int setVideoSurface(VideoState **ps, ANativeWindow* native_window);
-int setListener(VideoState **ps,  void* clazz, void (*listener) (void*, int, int, int));
+int setListener(VideoState **ps,  void* clazz, void (*listener) (void*, int, int, int, int));
 int setMetadataFilter(VideoState **ps, char *allow[], char *block[]);
 int getMetadata(VideoState **ps, AVDictionary **metadata);
 int prepare(VideoState **ps);
@@ -226,6 +226,7 @@ int setLooping(VideoState **ps, int loop);
 int isLooping(VideoState **ps);
 int setVolume(VideoState **ps, float leftVolume, float rightVolume);
 void notify(VideoState *is, int msg, int ext1, int ext2);
+void notify_from_thread(VideoState *is, int msg, int ext1, int ext2);
 int setNextPlayer(VideoState **ps, VideoState *next);
 
 void clear_l(VideoState **ps);

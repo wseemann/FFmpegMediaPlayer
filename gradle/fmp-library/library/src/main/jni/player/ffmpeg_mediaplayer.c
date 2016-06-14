@@ -16,8 +16,6 @@
  * limitations under the License.
  */
 
-// uncomment for video
-
 //#include <android/log.h>
 #include <ffmpeg_mediaplayer.h>
 
@@ -391,7 +389,7 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
     is->audio_buf_index += len1;
   }
 
-  //notify(is, MEDIA_BUFFERING_UPDATE, 0, 0);
+  //notify_from_thread(is, MEDIA_BUFFERING_UPDATE, 0, 0);
 }
 
 void video_refresh_timer(void *userdata);
@@ -447,71 +445,151 @@ void video_display(VideoState *is) {
   }
 }
 
-void video_refresh_timer(void *userdata) {
+//void video_refresh_timer(void *userdata) {
+//
+//	VideoState *is = (VideoState *)userdata;
+//	VideoPicture *vp;
+//	double actual_delay, delay, sync_threshold, ref_clock, diff;
+//
+//	if(is->video_st) {
+//		if(is->pictq_size == 0) {
+//			schedule_refresh(is, 1);
+//		} else {
+//			vp = &is->pictq[is->pictq_rindex];
+//
+//			is->video_current_pts = vp->pts;
+//			is->video_current_pts_time = av_gettime();
+//
+//			delay = vp->pts - is->frame_last_pts; /* the pts from last time */
+//			if(delay <= 0 || delay >= 1.0) {
+//				/* if incorrect delay, use previous one */
+//				delay = is->frame_last_delay;
+//			}
+//			/* save for next time */
+//			is->frame_last_delay = delay;
+//			is->frame_last_pts = vp->pts;
+//
+//			/* update delay to sync to audio if not master source */
+//			if(is->av_sync_type != AV_SYNC_VIDEO_MASTER) {
+//				ref_clock = get_master_clock(is);
+//				diff = vp->pts - ref_clock;
+//
+//				/* Skip or repeat the frame. Take delay into account
+//	   FFPlay still doesn't "know if this is the best guess." */
+//				sync_threshold = (delay > AV_SYNC_THRESHOLD) ? delay : AV_SYNC_THRESHOLD;
+//				if(fabs(diff) < AV_NOSYNC_THRESHOLD) {
+//					if(diff <= -sync_threshold) {
+//						delay = 0;
+//					} else if(diff >= sync_threshold) {
+//						delay = 2 * delay;
+//					}
+//				}
+//			}
+//
+//			is->frame_timer += delay;
+//			/* computer the REAL delay */
+//			actual_delay = is->frame_timer - (av_gettime() / 1000000.0);
+//			if(actual_delay < 0.010) {
+//				/* Really it should skip the picture instead */
+//				actual_delay = 0.010;
+//			}
+//			schedule_refresh(is, (int)(actual_delay * 1000 + 0.5));
+//
+//			/* show the picture! */
+//			video_display(is);
+//
+//			/* update queue for next picture! */
+//			if(++is->pictq_rindex == VIDEO_PICTURE_QUEUE_SIZE) {
+//				is->pictq_rindex = 0;
+//			}
+//			SDL_LockMutex(is->pictq_mutex);
+//			is->pictq_size--;
+//			SDL_CondSignal(is->pictq_cond);
+//			SDL_UnlockMutex(is->pictq_mutex);
+//		}
+//	} else {
+//		schedule_refresh(is, 100);
+//	}
+//}
 
-  VideoState *is = (VideoState *)userdata;
-  VideoPicture *vp;
-  double actual_delay, delay, sync_threshold, ref_clock, diff;
+void video_refresh_timer(void *opaque) {
+	VideoState *is = (VideoState *)opaque;
 
-  if(is->video_st) {
-    if(is->pictq_size == 0) {
-      schedule_refresh(is, 1);
-    } else {
-      vp = &is->pictq[is->pictq_rindex];
+	VideoPicture *vp;
+	double actual_delay, delay, sync_threshold, ref_clock, diff;
 
-      is->video_current_pts = vp->pts;
-      is->video_current_pts_time = av_gettime();
+    for(;;) {
+	    if(is->quit) {
+	        break;
+	    }
 
-      delay = vp->pts - is->frame_last_pts; /* the pts from last time */
-      if(delay <= 0 || delay >= 1.0) {
-	/* if incorrect delay, use previous one */
-	delay = is->frame_last_delay;
-      }
-      /* save for next time */
-      is->frame_last_delay = delay;
-      is->frame_last_pts = vp->pts;
+	    if(is->video_st) {
+	        if(is->pictq_size == 0) {
+	          //schedule_refresh(is, 1);
+	          SDL_Delay(1);
+	          continue;
+	        } else {
+	          vp = &is->pictq[is->pictq_rindex];
 
-      /* update delay to sync to audio if not master source */
-      if(is->av_sync_type != AV_SYNC_VIDEO_MASTER) {
-	ref_clock = get_master_clock(is);
-	diff = vp->pts - ref_clock;
+	          is->video_current_pts = vp->pts;
+	          is->video_current_pts_time = av_gettime();
 
-	/* Skip or repeat the frame. Take delay into account
-	   FFPlay still doesn't "know if this is the best guess." */
-	sync_threshold = (delay > AV_SYNC_THRESHOLD) ? delay : AV_SYNC_THRESHOLD;
-	if(fabs(diff) < AV_NOSYNC_THRESHOLD) {
-	  if(diff <= -sync_threshold) {
-	    delay = 0;
-	  } else if(diff >= sync_threshold) {
-	    delay = 2 * delay;
-	  }
-	}
-      }
+	          delay = vp->pts - is->frame_last_pts; /* the pts from last time */
+	          if(delay <= 0 || delay >= 1.0) {
+	    	/* if incorrect delay, use previous one */
+	    	delay = is->frame_last_delay;
+	          }
+	          /* save for next time */
+	          is->frame_last_delay = delay;
+	          is->frame_last_pts = vp->pts;
 
-      is->frame_timer += delay;
-      /* computer the REAL delay */
-      actual_delay = is->frame_timer - (av_gettime() / 1000000.0);
-      if(actual_delay < 0.010) {
-	/* Really it should skip the picture instead */
-	actual_delay = 0.010;
-      }
-      schedule_refresh(is, (int)(actual_delay * 1000 + 0.5));
+	          /* update delay to sync to audio if not master source */
+	          if(is->av_sync_type != AV_SYNC_VIDEO_MASTER) {
+	    	ref_clock = get_master_clock(is);
+	    	diff = vp->pts - ref_clock;
 
-      /* show the picture! */
-      video_display(is);
+	    	/* Skip or repeat the frame. Take delay into account
+	    	   FFPlay still doesn't "know if this is the best guess." */
+	    	sync_threshold = (delay > AV_SYNC_THRESHOLD) ? delay : AV_SYNC_THRESHOLD;
+	    	if(fabs(diff) < AV_NOSYNC_THRESHOLD) {
+	    	  if(diff <= -sync_threshold) {
+	    	    delay = 0;
+	    	  } else if(diff >= sync_threshold) {
+	    	    delay = 2 * delay;
+	    	  }
+	    	}
+	          }
 
-      /* update queue for next picture! */
-      if(++is->pictq_rindex == VIDEO_PICTURE_QUEUE_SIZE) {
-	is->pictq_rindex = 0;
-      }
-      SDL_LockMutex(is->pictq_mutex);
-      is->pictq_size--;
-      SDL_CondSignal(is->pictq_cond);
-      SDL_UnlockMutex(is->pictq_mutex);
+	          is->frame_timer += delay;
+	          /* computer the REAL delay */
+	          actual_delay = is->frame_timer - (av_gettime() / 1000000.0);
+	          if(actual_delay < 0.010) {
+	    	/* Really it should skip the picture instead */
+	    	actual_delay = 0.010;
+	          }
+	          //schedule_refresh(is, (int)(actual_delay * 1000 + 0.5));
+
+	          /* show the picture! */
+	          video_display(is);
+
+	          /* update queue for next picture! */
+	          if(++is->pictq_rindex == VIDEO_PICTURE_QUEUE_SIZE) {
+	    	is->pictq_rindex = 0;
+	          }
+	          SDL_LockMutex(is->pictq_mutex);
+	          is->pictq_size--;
+	          SDL_CondSignal(is->pictq_cond);
+	          SDL_UnlockMutex(is->pictq_mutex);
+
+	          SDL_Delay((int)(actual_delay * 1000 + 0.5));
+	          continue;
+	        }
+	      } else {
+	        //schedule_refresh(is, 100);
+	        SDL_Delay(100);
+	        continue;
+	      }
     }
-  } else {
-    schedule_refresh(is, 100);
-  }
 }
 
 void alloc_picture(void *userdata) {
@@ -760,7 +838,7 @@ int stream_component_open(VideoState *is, int stream_index) {
     createScreen(&is->video_player, is->native_window, is->video_st->codec->width, is->video_st->codec->height);
 
     is->video_tid = malloc(sizeof(*(is->video_tid)));
-	// uncomment for video
+
     pthread_create(is->video_tid, NULL, (void *) &video_thread, is);
     is->sws_ctx = createScaler(&is->video_player, is->video_st->codec);
 
@@ -817,21 +895,21 @@ int decode_thread(void *arg) {
   if (avio_open2(&is->io_context, is->filename, 0, &callback, &io_dict))
   {
     fprintf(stderr, "Unable to open I/O for %s\n", is->filename);
-    notify(is, MEDIA_ERROR, 0, 0);
+    notify_from_thread(is, MEDIA_ERROR, 0, 0);
     return -1;
   }
 
   // Open video file
   if(avformat_open_input(&is->pFormatCtx, is->filename, NULL, &options)!=0)
   {
-	notify(is, MEDIA_ERROR, 0, 0);
+	  notify_from_thread(is, MEDIA_ERROR, 0, 0);
     return -1; // Couldn't open file
   }
 
   // Retrieve stream information
   if(avformat_find_stream_info(is->pFormatCtx, NULL)<0)
   {
-	notify(is, MEDIA_ERROR, 0, 0);
+	  notify_from_thread(is, MEDIA_ERROR, 0, 0);
     return -1; // Couldn't find stream information
   }
 
@@ -861,7 +939,7 @@ int decode_thread(void *arg) {
   if(is->videoStream < 0 && is->audioStream < 0) {
   //if(is->videoStream < 0 || is->audioStream < 0) {
     fprintf(stderr, "%s: could not open codecs\n", is->filename);
-    notify(is, MEDIA_ERROR, 0, 0);
+    notify_from_thread(is, MEDIA_ERROR, 0, 0);
     return 0;
   }
 
@@ -903,7 +981,7 @@ int decode_thread(void *arg) {
 	  packet_queue_flush(&is->videoq);
 	  packet_queue_put(is, &is->videoq, &is->flush_pkt);
 	}
-	notify(is, MEDIA_SEEK_COMPLETE, 0, 0);
+	notify_from_thread(is, MEDIA_SEEK_COMPLETE, 0, 0);
 
       }
       is->seek_req = 0;
@@ -913,7 +991,7 @@ int decode_thread(void *arg) {
     if (is->audioq.size >= MAX_AUDIOQ_SIZE && !is->prepared) {
         queueAudioSamples(&is->audio_player, is);
 
-		notify(is, MEDIA_PREPARED, 0, 0);
+        notify_from_thread(is, MEDIA_PREPARED, 0, 0);
     	is->prepared = 1;
     }
 
@@ -950,7 +1028,7 @@ int decode_thread(void *arg) {
   }
 
   if (eof) {
-      notify(is, MEDIA_PLAYBACK_COMPLETE, 0, 0);
+	  notify_from_thread(is, MEDIA_PLAYBACK_COMPLETE, 0, 0);
   }
   return 0;
 }
@@ -1159,7 +1237,7 @@ int setVideoSurface(VideoState **ps, ANativeWindow* native_window) {
 	return NO_ERROR;
 }
 
-int setListener(VideoState **ps, void* clazz, void (*listener) (void*, int, int, int)) {
+int setListener(VideoState **ps, void* clazz, void (*listener) (void*, int, int, int, int)) {
 	VideoState *is = *ps;
 
 	is->clazz = clazz;
@@ -1222,6 +1300,10 @@ int stop(VideoState **ps) {
 
 	    if (is->videoq.initialized == 1) {
 	    	SDL_CondSignal(is->videoq.cond);
+	    }
+
+	    if (is->video_refresh_tid) {
+	    	pthread_join(*(is->video_refresh_tid), NULL);
 	    }
 
 	    if (is->parse_tid) {
@@ -1330,6 +1412,10 @@ int reset(VideoState **ps) {
 	    	SDL_CondSignal(is->videoq.cond);
 	    }
 
+	    if (is->video_refresh_tid) {
+	    	pthread_join(*(is->video_refresh_tid), NULL);
+	    }
+
 	    if (is->parse_tid) {
 	    	pthread_join(*(is->parse_tid), NULL);
 	    }
@@ -1390,7 +1476,13 @@ int setVolume(VideoState **ps, float leftVolume, float rightVolume) {
 
 void notify(VideoState *is, int msg, int ext1, int ext2) {
 	if (is->notify_callback) {
-		is->notify_callback(is->clazz, msg, ext1, ext2);
+		is->notify_callback(is->clazz, msg, ext1, ext2, 0);
+	}
+}
+
+void notify_from_thread(VideoState *is, int msg, int ext1, int ext2) {
+	if (is->notify_callback) {
+		is->notify_callback(is->clazz, msg, ext1, ext2, 1);
 	}
 }
 
@@ -1599,11 +1691,10 @@ int prepareAsync_l(VideoState **ps) {
     	is->pictq_mutex = SDL_CreateMutex();
         is->pictq_cond = SDL_CreateCond();
 
-    	//is->event_tid = malloc(sizeof(*(is->event_tid)));
-    	//pthread_create(is->event_tid, NULL, (void *) &event_thread, is);
+    	is->video_refresh_tid = malloc(sizeof(*(is->video_refresh_tid)));
+    	pthread_create(is->video_refresh_tid, NULL, (void *) &video_refresh_timer, is);
 
-    	// uncomment for video
-    	schedule_refresh(is, 40);
+    	//schedule_refresh(is, 40);
 
     	is->av_sync_type = DEFAULT_AV_SYNC_TYPE;
     	is->parse_tid = malloc(sizeof(*(is->parse_tid)));

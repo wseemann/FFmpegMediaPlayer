@@ -85,6 +85,8 @@ public class VideoPlayerActivity extends FragmentActivity {
                 String uriString = uriText.getText().toString();
 
                 try {
+                    mMediaPlayer.reset();
+
                     mMediaPlayer.setDataSource(uriString);
                     if (mFinalSurface != null) {
                        mMediaPlayer.setSurface(mFinalSurface);
@@ -142,6 +144,7 @@ public class VideoPlayerActivity extends FragmentActivity {
         mMediaPlayer = new FFmpegMediaPlayer();
         mMediaPlayer.setOnPreparedListener(mOnPreparedListener);
         mMediaPlayer.setOnErrorListener(mOnErrorListener);
+        mMediaPlayer.stop();
     }
 
     private FFmpegMediaPlayer.OnPreparedListener mOnPreparedListener = new FFmpegMediaPlayer.OnPreparedListener() {
@@ -154,7 +157,7 @@ public class VideoPlayerActivity extends FragmentActivity {
     private FFmpegMediaPlayer.OnErrorListener mOnErrorListener = new FFmpegMediaPlayer.OnErrorListener() {
         @Override
         public boolean onError(FFmpegMediaPlayer mp, int what, int extra) {
-            Log.d("TAG", "---- ERROR " + what);
+            Log.d(VideoPlayerActivity.class.getName(), "Error: " + what);
             return true;
         }
     };

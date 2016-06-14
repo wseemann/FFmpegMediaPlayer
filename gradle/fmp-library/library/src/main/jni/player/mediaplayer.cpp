@@ -90,10 +90,10 @@ void MediaPlayer::clear_l()
 }
 
 static void
-notifyListener(void* clazz, int msg, int ext1, int ext2)
+notifyListener(void* clazz, int msg, int ext1, int ext2, int fromThread)
 {
     MediaPlayer* mp = (MediaPlayer*) clazz;
-    mp->notify(msg, ext1, ext2);
+    mp->notify(msg, ext1, ext2, fromThread);
 }
 
 status_t MediaPlayer::setListener(MediaPlayerListener *listener)
@@ -562,7 +562,7 @@ status_t MediaPlayer::attachAuxEffect(int effectId)
     }
 }
 
-void MediaPlayer::notify(int msg, int ext1, int ext2)
+void MediaPlayer::notify(int msg, int ext1, int ext2, int fromThread)
 {
 	//__android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "message received msg=%d, ext1=%d, ext2=%d", msg, ext1, ext2);
     bool send = true;
@@ -662,7 +662,7 @@ void MediaPlayer::notify(int msg, int ext1, int ext2)
     if ((listener != 0) && send) {
         //Mutex::Autolock _l(mNotifyLock);
         //__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "callback application");
-        listener->notify(msg, ext1, ext2);
+        listener->notify(msg, ext1, ext2, fromThread);
         //__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "back from callback");
     }
 }

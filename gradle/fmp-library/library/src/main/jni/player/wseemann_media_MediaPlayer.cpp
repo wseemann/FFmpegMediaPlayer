@@ -59,7 +59,7 @@ class JNIMediaPlayerListener: public MediaPlayerListener
 public:
     JNIMediaPlayerListener(JNIEnv* env, jobject thiz, jobject weak_thiz);
     ~JNIMediaPlayerListener();
-    virtual void notify(int msg, int ext1, int ext2);
+    virtual void notify(int msg, int ext1, int ext2, int from_thread);
     //virtual void notify(int msg, int ext1, int ext2, const Parcel *obj = NULL);
 private:
     JNIMediaPlayerListener();
@@ -104,7 +104,8 @@ JNIMediaPlayerListener::~JNIMediaPlayerListener()
     env->DeleteGlobalRef(mThiz);
 }
 
-void JNIMediaPlayerListener::notify(int msg, int ext1, int ext2)
+void JNIMediaPlayerListener::notify(int msg, int ext1, int ext2, int fromThread)
+//void JNIMediaPlayerListener::notify(int msg, int ext1, int ext2)
 //void JNIMediaPlayerListener::notify(int msg, int ext1, int ext2, const Parcel *obj)
 {
     __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "notify: %d", msg);
@@ -113,7 +114,7 @@ void JNIMediaPlayerListener::notify(int msg, int ext1, int ext2)
     
     int status  = m_vm->GetEnv((void**)&env, JNI_VERSION_1_6);
     
-    //if (fromThread) {
+    if (fromThread) {
         jclass *interface_class;
         
         isAttached = 0;
@@ -123,7 +124,7 @@ void JNIMediaPlayerListener::notify(int msg, int ext1, int ext2)
         }
         
         isAttached = 1;
-    //}
+    }
     
     //JNIEnv *env = AndroidRuntime::getJNIEnv();
     /*if (obj && obj->dataSize() > 0) {
@@ -146,9 +147,9 @@ void JNIMediaPlayerListener::notify(int msg, int ext1, int ext2)
         env->ExceptionClear();
     }
     
-    //if (fromThread && isAttached) {
-        m_vm->DetachCurrentThread();
-    //}
+    if (fromThread && isAttached) {
+    	m_vm->DetachCurrentThread();
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -183,7 +184,7 @@ static void process_media_player_call(JNIEnv *env, jobject thiz, int opStatus, c
     if (exception == NULL) {  // Don't throw exception. Instead, send an event.
         if (opStatus != (int) OK) {
             MediaPlayer* mp = getMediaPlayer(env, thiz);
-            if (mp != 0) mp->notify(MEDIA_ERROR, opStatus, 0);
+            if (mp != 0) mp->notify(MEDIA_ERROR, opStatus, 0, 0);
         }
     } else {  // Throw exception!
         if ( opStatus == (int) INVALID_OPERATION ) {

@@ -58,7 +58,7 @@ enum media_player_states {
 class MediaPlayerListener
 {
 public:
-    virtual void notify(int msg, int ext1, int ext2) = 0;
+    virtual void notify(int msg, int ext1, int ext2, int fromThread) = 0;
 };
 
 class MediaPlayer
@@ -91,7 +91,7 @@ public:
             status_t        setLooping(int loop);
             bool            isLooping();
             status_t        setVolume(float leftVolume, float rightVolume);
-            void            notify(int msg, int ext1, int ext);
+            void            notify(int msg, int ext1, int ext, int fromThread);
             status_t        setAudioSessionId(int sessionId);
             int             getAudioSessionId();
             status_t        setAuxEffectSendLevel(float level);
