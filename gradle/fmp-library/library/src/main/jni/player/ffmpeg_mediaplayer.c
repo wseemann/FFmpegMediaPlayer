@@ -822,10 +822,6 @@ int stream_component_open(VideoState *is, int stream_index) {
     packet_queue_init(&is->audioq);
     break;
   case AVMEDIA_TYPE_VIDEO:
-    if (is->native_window == NULL) {
-        return -1;
-    }
-          
     is->videoStream = stream_index;
     is->video_st = pFormatCtx->streams[stream_index];
 
@@ -1231,6 +1227,10 @@ int setVideoSurface(VideoState **ps, ANativeWindow* native_window) {
 	VideoState *is = *ps;
 
 	is->native_window = native_window;
+
+	if (is && is->video_player) {
+		setSurface(&is->video_player, is->native_window);
+	}
 
 	*ps = is;
 

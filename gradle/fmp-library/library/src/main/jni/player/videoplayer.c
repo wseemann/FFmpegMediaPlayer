@@ -30,6 +30,11 @@ void createScreen(VideoPlayer **ps, void *surface, int width, int height) {
 	is->native_window = surface;
 }
 
+void setSurface(VideoPlayer **ps, void *surface) {
+	VideoPlayer *is = *ps;
+	is->native_window = surface;
+}
+
 struct SwsContext *createScaler(VideoPlayer **ps, AVCodecContext *codec) {
 	struct SwsContext * sws_ctx;
 

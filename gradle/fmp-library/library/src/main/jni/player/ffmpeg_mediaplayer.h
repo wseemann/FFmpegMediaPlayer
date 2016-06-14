@@ -184,7 +184,7 @@ typedef struct VideoState {
   AVPacket flush_pkt;
   void *next;
 
-  ANativeWindow *native_window;
+  void *native_window;
 } VideoState;
 
 struct AVDictionary {
