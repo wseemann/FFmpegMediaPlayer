@@ -44,6 +44,10 @@ or, if your application supports individual architectures extract the appropriat
 
 [Prebuilt AARs] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.3/prebuilt-aars.zip)
 
+(with HTTPS support)
+
+[Prebuilt AARs with HTTPS] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.3/prebuilt-aars-with-https.zip)
+
 Demo Application
 ------------
 
