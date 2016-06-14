@@ -37,12 +37,12 @@ Using FMP in your application (Android Studio)
 Add the following maven dependency to your project's `build.gradle` file:
 
     dependencies {
-        compile 'com.github.wseemann:FFmpegMediaPlayer:1.0.2'
+        compile 'com.github.wseemann:FFmpegMediaPlayer:1.0.3'
     }
 
 or, if your application supports individual architectures extract the appropriate AAR file into you projects "libs" folder:
 
-[Prebuilt AARs] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.2/prebuilt-aars.zip)
+[Prebuilt AARs] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.3/prebuilt-aars.zip)
 
 Demo Application
 ------------
@@ -55,7 +55,7 @@ Installation
 FFmpegMediaPlayer relies on FFmpeg and native code. The build process
 is complex and may be confusing for those unfamiliar the Android NDK. For this
 reason I've precompiled the modules created by the build process and checked them
-in at: https://github.com/wseemann/FFmpegMediaPlayer/blob/master/fmp-library/prebuilt-libs.tar.gz.
+in at: https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.3/prebuilt-aars.zip.
 The modules are also included with the library. If you don't want to build the modules
 you can simple unzip the prebuilt ones and copy them to your projects "libs" folder. (Note:
 copy them to YOUR projects "libs" folder, NOT the "libs" folder located in
