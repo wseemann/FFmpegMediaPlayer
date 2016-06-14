@@ -71,7 +71,6 @@ done
 
 function build_one
 {
-echo ":sasas"
 echo $ARCH_NAME
 
 SSL_LD=`pwd`
@@ -142,7 +141,6 @@ pushd ffmpeg-$FFMPEG_VERSION
     --disable-ffserver \
     --disable-doc \
     --disable-avdevice \
-    --disable-swresample \
     --disable-postproc \
     --disable-avfilter \
     --disable-gpl \
