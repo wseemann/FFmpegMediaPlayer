@@ -66,7 +66,22 @@ typedef enum media_event_type {
     MEDIA_BUFFERING_UPDATE  = 3,
     MEDIA_SEEK_COMPLETE     = 4,
     MEDIA_ERROR             = 100,
+	MEDIA_INFO              = 200,
 } media_event_type;
+
+typedef enum media_info_type {
+	MEDIA_INFO_UNKNOWN               = 0,
+	MEDIA_INFO_VIDEO_TRACK_LAGGING   = 700,
+	MEDIA_INFO_VIDEO_RENDERING_START = 3,
+	MEDIA_INFO_BUFFERING_START       = 701,
+	MEDIA_INFO_BUFFERING_END         = 702,
+	MEDIA_INFO_NETWORK_BANDWIDTH     = 703,
+	MEDIA_INFO_BAD_INTERLEAVING      = 800,
+	MEDIA_INFO_NOT_SEEKABLE          = 801,
+	MEDIA_INFO_METADATA_UPDATE       = 802,
+	MEDIA_INFO_UNSUPPORTED_SUBTITLE  = 901,
+	MEDIA_INFO_SUBTITLE_TIMED_OUT    = 902,
+} media_info_type;
 
 typedef int media_error_type;
 static const media_error_type MEDIA_ERROR_UNKNOWN = 1;
@@ -191,6 +206,14 @@ struct AVDictionary {
 	int count;
 	AVDictionaryEntry *elems;
 };
+
+typedef struct Message {
+	VideoState* is;
+	int msg;
+	int ext1;
+	int ext2;
+	int from_thread;
+} Message;
 
 enum {
   AV_SYNC_AUDIO_MASTER,

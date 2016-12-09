@@ -19,6 +19,9 @@
 //#include <android/log.h>
 #include <ffmpeg_mediaplayer.h>
 
+static int one = 0;
+static int two = 0;
+
 void packet_queue_init(PacketQueue *q) {
   memset(q, 0, sizeof(PacketQueue));
   q->initialized = 1;
@@ -748,6 +751,8 @@ int video_thread(void *arg) {
     av_packet_unref(packet);
   }
   av_free(pFrame);
+
+  two = 1;
   return 0;
 }
 int stream_component_open(VideoState *is, int stream_index) {
@@ -949,6 +954,9 @@ int decode_thread(void *arg) {
   set_framerate(is->pFormatCtx, is->audio_st, is->video_st);
   set_filesize(is->pFormatCtx);
   set_chapter_count(is->pFormatCtx);
+  //set_video_dimensions(is->pFormatCtx, is->video_st);
+
+  notify_from_thread(is, MEDIA_INFO, MEDIA_INFO_METADATA_UPDATE, 0);
 
   // main decode loop
 
@@ -1032,6 +1040,8 @@ int decode_thread(void *arg) {
   if (eof) {
 	  notify_from_thread(is, MEDIA_PLAYBACK_COMPLETE, 0, 0);
   }
+
+  one = 1;
   return 0;
 }
 
@@ -1314,10 +1324,13 @@ int stop(VideoState **ps) {
 
 	    if (is->parse_tid) {
 	    	pthread_join(*(is->parse_tid), NULL);
+	    	printf("one: %d:\n", one);
 	    }
 
 	    if (is->video_tid) {
+            SDL_CondSignal(is->pictq_cond);
 	    	pthread_join(*(is->video_tid), NULL);
+	    	printf("two: %d:\n", two);
 	    }
 
         setPlayingAudioPlayer(&is->audio_player, 2);
@@ -1427,6 +1440,7 @@ int reset(VideoState **ps) {
 	    }
 
 	    if (is->video_tid) {
+            SDL_CondSignal(is->pictq_cond);
 	    	pthread_join(*(is->video_tid), NULL);
 	    }
 
@@ -1480,6 +1494,22 @@ int setVolume(VideoState **ps, float leftVolume, float rightVolume) {
 	return INVALID_OPERATION;
 }
 
+static Uint32 notify_from_thread_cb(Uint32 interval, void *opaque) {
+    Message *message = (Message*) opaque;
+
+    if (!message) {
+    	return 0;
+    }
+
+    if (message->is && message->is->notify_callback) {
+	    message->is->notify_callback(message->is->clazz, message->msg, message->ext1, message->ext2, message->from_thread);
+    }
+
+    free(message);
+
+    return 0; /* 0 means stop timer */
+}
+
 void notify(VideoState *is, int msg, int ext1, int ext2) {
 	if (is->notify_callback) {
 		is->notify_callback(is->clazz, msg, ext1, ext2, 0);
@@ -1487,9 +1517,14 @@ void notify(VideoState *is, int msg, int ext1, int ext2) {
 }
 
 void notify_from_thread(VideoState *is, int msg, int ext1, int ext2) {
-	if (is->notify_callback) {
-		is->notify_callback(is->clazz, msg, ext1, ext2, 1);
-	}
+	Message* message = malloc(sizeof(Message));
+	message->is = is;
+	message->msg = msg;
+	message->ext1 = ext1;
+	message->ext2 = ext2;
+	message->from_thread = 1;
+
+	SDL_AddTimer(0, notify_from_thread_cb, message);
 }
 
 int setNextPlayer(VideoState **ps, VideoState *next) {

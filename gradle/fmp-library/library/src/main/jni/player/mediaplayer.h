@@ -23,6 +23,7 @@
 
 #include <Errors.h>
 #include <pthread.h>
+#include <Mutex.h>
 
 extern "C" {
     #include "ffmpeg_mediaplayer.h"
@@ -108,8 +109,9 @@ private:
             status_t        setDataSource(VideoState *state);
         
     //sp<IMediaPlayer>            mPlayer;
-    pthread_mutex_t*            mLock;
-    pthread_mutex_t*            mNotifyLock;
+    //thread_id_t                 mLockThreadId;
+    Mutex                       mLock;
+    Mutex                       mNotifyLock;
     //Condition                   mSignal;
     MediaPlayerListener*        mListener;
     void*                       mCookie;

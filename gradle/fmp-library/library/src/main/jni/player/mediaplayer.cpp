@@ -18,7 +18,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "FFmpegMediaPlayer"
-//#include <android/log.h>
+#include <android/log.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -53,7 +53,6 @@ MediaPlayer::MediaPlayer()
     mLeftVolume = mRightVolume = 1.0;
     mVideoWidth = mVideoHeight = 0;
     //mLockThreadId = 0;
-    //pthread_mutex_init(mLock, NULL);
     mAudioSessionId = 0;
     mSendLevel = 0;
 }
@@ -70,7 +69,7 @@ void MediaPlayer::disconnect()
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "disconnect");
     VideoState *p = NULL;
     {
-        //Mutex::Autolock _l(mLock);
+        Mutex::Autolock _l(mLock);
         p = state;
         ::reset(&p);
     }
@@ -99,7 +98,7 @@ notifyListener(void* clazz, int msg, int ext1, int ext2, int fromThread)
 status_t MediaPlayer::setListener(MediaPlayerListener *listener)
 {
     //__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "setListener");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     mListener = listener;
     if (state != 0) {
     	::setListener(&state, this, notifyListener);
@@ -117,7 +116,7 @@ status_t MediaPlayer::setDataSource(VideoState *player)
     status_t err = UNKNOWN_ERROR;
     VideoState *p;
     { // scope for the lock
-        //Mutex::Autolock _l(mLock);
+        Mutex::Autolock _l(mLock);
 
         if ( !( (mCurrentState & MEDIA_PLAYER_IDLE) ||
                 (mCurrentState == MEDIA_PLAYER_STATE_ERROR ) ) ) {
@@ -181,7 +180,7 @@ status_t MediaPlayer::setDataSource(int fd, int64_t offset, int64_t length)
 status_t MediaPlayer::setMetadataFilter(char *allow[], char *block[])
 {
 	//__android_log_write(ANDROID_LOG_DEBUG, LOG_TAG, "setMetadataFilter");
-    //Mutex::Autolock lock(mLock);
+    Mutex::Autolock lock(mLock);
     if (state == NULL) {
         return NO_INIT;
     }
@@ -191,7 +190,7 @@ status_t MediaPlayer::setMetadataFilter(char *allow[], char *block[])
 status_t MediaPlayer::getMetadata(bool update_only, bool apply_filter, AVDictionary **metadata)
 {
     //__android_log_write(ANDROID_LOG_DEBUG, LOG_TAG, "getMetadata");
-    //Mutex::Autolock lock(mLock);
+    Mutex::Autolock lock(mLock);
     if (state == NULL) {
         return NO_INIT;
     }
@@ -201,7 +200,7 @@ status_t MediaPlayer::getMetadata(bool update_only, bool apply_filter, AVDiction
 status_t MediaPlayer::setVideoSurface(ANativeWindow* native_window)
 {
 	//__android_log_write(ANDROID_LOG_DEBUG, LOG_TAG, "setVideoSurface");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (state == 0) return NO_INIT;
     if (native_window != NULL)
         return ::setVideoSurface(&state, native_window);
@@ -213,7 +212,8 @@ status_t MediaPlayer::setVideoSurface(ANativeWindow* native_window)
 status_t MediaPlayer::prepareAsync_l()
 {
     if ( (state != 0) && ( mCurrentState & ( MEDIA_PLAYER_INITIALIZED | MEDIA_PLAYER_STOPPED) ) ) {
-        setAudioStreamType(mStreamType);
+        // TODO add this back, was causing a threading issue
+    	//setAudioStreamType(mStreamType);
         mCurrentState = MEDIA_PLAYER_PREPARING;
         return ::prepareAsync(&state);
     }
@@ -228,7 +228,7 @@ status_t MediaPlayer::prepareAsync_l()
 status_t MediaPlayer::prepare()
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "prepare");
-	//Mutex::Autolock _l(mLock);
+	Mutex::Autolock _l(mLock);
 	//mLockThreadId = getThreadId();
 	if (mPrepareSync) {
 	//mLockThreadId = 0;
@@ -253,21 +253,22 @@ status_t MediaPlayer::prepare()
 status_t MediaPlayer::prepareAsync()
 {
     //__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "prepareAsync");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
 	return prepareAsync_l();
 }
 
 status_t MediaPlayer::start()
 {
     //__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "start");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (mCurrentState & MEDIA_PLAYER_STARTED)
         return NO_ERROR;
     if ( (state != 0) && ( mCurrentState & ( MEDIA_PLAYER_PREPARED |
                     MEDIA_PLAYER_PLAYBACK_COMPLETE | MEDIA_PLAYER_PAUSED ) ) ) {
-        setLooping(mLoop);
-        setVolume(mLeftVolume, mRightVolume);
-        setAuxEffectSendLevel(mSendLevel);
+        ::setLooping(&state, mLoop);
+        ::setVolume(&state, mLeftVolume, mRightVolume);
+        // TODO add this back was causing threading issue
+        //setAuxEffectSendLevel(mSendLevel);
         mCurrentState = MEDIA_PLAYER_STARTED;
         status_t ret = ::start(&state);
         if (ret != NO_ERROR) {
@@ -286,7 +287,7 @@ status_t MediaPlayer::start()
 status_t MediaPlayer::stop()
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "stop");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (mCurrentState & MEDIA_PLAYER_STOPPED) return NO_ERROR;
     if ( (state != 0) && ( mCurrentState & ( MEDIA_PLAYER_STARTED | MEDIA_PLAYER_PREPARED |
                     MEDIA_PLAYER_PAUSED | MEDIA_PLAYER_PLAYBACK_COMPLETE ) ) ) {
@@ -305,7 +306,7 @@ status_t MediaPlayer::stop()
 status_t MediaPlayer::pause()
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "pause");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (mCurrentState & (MEDIA_PLAYER_PAUSED|MEDIA_PLAYER_PLAYBACK_COMPLETE))
         return NO_ERROR;
     if ((state != 0) && (mCurrentState & MEDIA_PLAYER_STARTED)) {
@@ -323,7 +324,7 @@ status_t MediaPlayer::pause()
 
 bool MediaPlayer::isPlaying()
 {
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (state != 0) {
         bool temp = false;
         //mPlayer->isPlaying(&temp); // TODO fix this!
@@ -344,25 +345,27 @@ bool MediaPlayer::isPlaying()
 status_t MediaPlayer::getVideoWidth(int *w)
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "getVideoWidth");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (state == 0) return INVALID_OPERATION;
     *w = mVideoWidth;
+    ::getVideoWidth(&state, w);
     return NO_ERROR;
 }
 
 status_t MediaPlayer::getVideoHeight(int *h)
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "getVideoHeight");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (state == 0) return INVALID_OPERATION;
     *h = mVideoHeight;
+    ::getVideoHeight(&state, h);
     return NO_ERROR;
 }
 
 status_t MediaPlayer::getCurrentPosition(int *msec)
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "getCurrentPosition");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (state != 0) {
         if (mCurrentPosition >= 0) {
         	//__android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "Using cached seek position: %d", mCurrentPosition);
@@ -392,7 +395,7 @@ status_t MediaPlayer::getDuration_l(int *msec)
 
 status_t MediaPlayer::getDuration(int *msec)
 {
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     return getDuration_l(msec);
 }
 
@@ -426,7 +429,7 @@ status_t MediaPlayer::seekTo_l(int msec)
 status_t MediaPlayer::seekTo(int msec)
 {
     //mLockThreadId = getThreadId();
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     status_t result = seekTo_l(msec);
     //mLockThreadId = 0;
 
@@ -436,7 +439,7 @@ status_t MediaPlayer::seekTo(int msec)
 status_t MediaPlayer::reset()
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "reset");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     mLoop = false;
     if (mCurrentState == MEDIA_PLAYER_IDLE) return NO_ERROR;
     mPrepareSync = false;
@@ -457,7 +460,7 @@ status_t MediaPlayer::reset()
 status_t MediaPlayer::setAudioStreamType(int type)
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "MediaPlayer::setAudioStreamType");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (mStreamType == type) return NO_ERROR;
     if (mCurrentState & ( MEDIA_PLAYER_PREPARED | MEDIA_PLAYER_STARTED |
                 MEDIA_PLAYER_PAUSED | MEDIA_PLAYER_PLAYBACK_COMPLETE ) ) {
@@ -473,7 +476,7 @@ status_t MediaPlayer::setAudioStreamType(int type)
 status_t MediaPlayer::setLooping(int loop)
 {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "MediaPlayer::setLooping");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     mLoop = (loop != 0);
     if (state != 0) {
         return ::setLooping(&state, loop);
@@ -483,7 +486,7 @@ status_t MediaPlayer::setLooping(int loop)
 
 bool MediaPlayer::isLooping() {
 	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "isLooping");
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (state != 0) {
         return mLoop;
     }
@@ -494,7 +497,7 @@ bool MediaPlayer::isLooping() {
 status_t MediaPlayer::setVolume(float leftVolume, float rightVolume)
 {
 	//__android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "MediaPlayer::setVolume(%f, %f)", leftVolume, rightVolume);
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     mLeftVolume = leftVolume;
     mRightVolume = rightVolume;
     if (state != 0) {
@@ -509,7 +512,7 @@ status_t MediaPlayer::setVolume(float leftVolume, float rightVolume)
 status_t MediaPlayer::setAudioSessionId(int sessionId)
 {
 	//__android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "MediaPlayer::setAudioSessionId(%d)", sessionId);
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (!(mCurrentState & MEDIA_PLAYER_IDLE)) {
     	//__android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "setAudioSessionId called in state %d", mCurrentState);
         return INVALID_OPERATION;
@@ -523,14 +526,14 @@ status_t MediaPlayer::setAudioSessionId(int sessionId)
 
 int MediaPlayer::getAudioSessionId()
 {
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     return mAudioSessionId;
 }
 
 status_t MediaPlayer::setAuxEffectSendLevel(float level)
 {
 	//__android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "MediaPlayer::setAuxEffectSendLevel(%f)", level);
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     mSendLevel = level;
     if (state != 0) {
         MediaPlayerListener *listener = mListener;
@@ -545,7 +548,7 @@ status_t MediaPlayer::setAuxEffectSendLevel(float level)
 status_t MediaPlayer::attachAuxEffect(int effectId)
 {
 	//__android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, "MediaPlayer::attachAuxEffect(%d)", effectId);
-    //Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mLock);
     if (state == 0 ||
         (mCurrentState & MEDIA_PLAYER_IDLE) ||
         (mCurrentState == MEDIA_PLAYER_STATE_ERROR )) {
@@ -625,11 +628,11 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, int fromThread)
             send = false;
         }
         break;
-    /*case MEDIA_INFO:
+    case MEDIA_INFO:
         // ext1: Media framework error code.
         // ext2: Implementation dependant error code.
     	//__android_log_print(ANDROID_LOG_WARN, LOG_TAG, "info/warning (%d, %d)", ext1, ext2);
-        break;*/
+        break;
     case MEDIA_SEEK_COMPLETE:
     	//__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "Received seek complete");
         if (mSeekPosition != mCurrentPosition) {
@@ -660,7 +663,7 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, int fromThread)
 
     // this prevents re-entrant calls into client code
     if ((listener != 0) && send) {
-        //Mutex::Autolock _l(mNotifyLock);
+        Mutex::Autolock _l(mNotifyLock);
         //__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "callback application");
         listener->notify(msg, ext1, ext2, fromThread);
         //__android_log_write(ANDROID_LOG_VERBOSE, LOG_TAG, "back from callback");
