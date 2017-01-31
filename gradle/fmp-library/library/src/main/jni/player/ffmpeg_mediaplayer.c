@@ -773,7 +773,7 @@ int stream_component_open(VideoState *is, int stream_index) {
 	is->audio_callback = audio_callback;
 
     // Set audio settings from codec info
-	AudioPlayer *player = malloc(sizeof(AudioPlayer));
+    AudioPlayer *player = calloc(1, sizeof(AudioPlayer));
     is->audio_player = player;
     createEngine(&is->audio_player);
     createBufferQueueAudioPlayer(&is->audio_player, is, codecCtx->channels, codecCtx->sample_rate);
