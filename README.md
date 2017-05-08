@@ -12,12 +12,12 @@ Donations can be made via PayPal:
 
 **PayPal**
 
-- [**Donate 5 $**] (https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): Thank's for creating this project, here's a coffee for you!
-- [**Donate 10 $**] (https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): Wow, I am stunned. Let me take you to the movies!
-- [**Donate 15 $**] (https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): I really appreciate your work, let's grab some lunch! 
-- [**Donate 25 $**] (https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): That's some awesome stuff you did right there, dinner is on me!
-- [**Donate 50 $**] (https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): I really really want to support this project, great job!
-- [**Donate 100 $**] (https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): You are the man! This project saved me hours (if not days) of struggle and hard work, simply awesome!
+- [**Donate 5 $**](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): Thank's for creating this project, here's a coffee for you!
+- [**Donate 10 $**](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): Wow, I am stunned. Let me take you to the movies!
+- [**Donate 15 $**](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): I really appreciate your work, let's grab some lunch! 
+- [**Donate 25 $**](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): That's some awesome stuff you did right there, dinner is on me!
+- [**Donate 50 $**](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): I really really want to support this project, great job!
+- [**Donate 100 $**](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY): You are the man! This project saved me hours (if not days) of struggle and hard work, simply awesome!
 - Of course, you can also [**choose what you want to donate**](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2BDTFVEW9LFZY), all donations are awesome!
 
 Overview
@@ -50,16 +50,16 @@ Add the following maven dependency to your project's `build.gradle` file:
 
 or, if your application supports individual architectures extract the appropriate AAR file into you projects "libs" folder:
 
-[Prebuilt AARs] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.4/prebuilt-aars.zip)
+[Prebuilt AARs](https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.4/prebuilt-aars.zip)
 
 (with HTTPS support)
 
-[Prebuilt AARs with HTTPS] (https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.3/prebuilt-aars-with-https.zip)
+[Prebuilt AARs with HTTPS](https://github.com/wseemann/FFmpegMediaPlayer/releases/download/v1.0.3/prebuilt-aars-with-https.zip)
 
 Demo Application
 ------------
 
-A sample application that makes use of FFmpegMediaPlayer can be downloaded [here] (https://github.com/wseemann/FFmpegMediaPlayer/blob/master/FMPDemo.apk?raw=true). Note: The sample application is compiled with support for ALL available formats. This results in a larger library and APK. FFmpeg can be recompiled with a subset of codecs enabled for those wanting a smaller size.
+A sample application that makes use of FFmpegMediaPlayer can be downloaded [here](https://github.com/wseemann/FFmpegMediaPlayer/blob/master/FMPDemo.apk?raw=true). Note: The sample application is compiled with support for ALL available formats. This results in a larger library and APK. FFmpeg can be recompiled with a subset of codecs enabled for those wanting a smaller size.
 
 Installation
 ------------
