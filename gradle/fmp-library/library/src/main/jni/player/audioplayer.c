@@ -47,6 +47,8 @@ void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void *context)
 void createEngine(AudioPlayer **ps)
 {
     AudioPlayer *player = *ps;
+
+    player->buffer = NULL;
     
     SLresult result;
 
