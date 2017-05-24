@@ -19,11 +19,9 @@
 #ifndef MEDIAPLAYER_H
 #define MEDIAPLAYER_H
 
-#include <android/native_window_jni.h>
-
-#include <Errors.h>
+#include "Errors.h"
 #include <pthread.h>
-#include <Mutex.h>
+#include "Mutex.h"
 
 extern "C" {
     #include "ffmpeg_mediaplayer.h"
@@ -73,7 +71,7 @@ public:
             status_t        setDataSource(int fd, int64_t offset, int64_t length);
             status_t        setMetadataFilter(char *allow[], char *block[]);
             status_t        getMetadata(bool update_only, bool apply_filter, AVDictionary **metadata);
-            status_t        setVideoSurface(ANativeWindow* native_window);
+            status_t        setVideoSurface(void* native_window);
             status_t        setListener(MediaPlayerListener *listener);
             MediaPlayerListener * getListener();
             status_t        prepare();

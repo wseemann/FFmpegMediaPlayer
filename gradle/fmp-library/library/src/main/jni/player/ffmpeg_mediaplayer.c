@@ -1237,7 +1237,7 @@ int setDataSourceFD(VideoState **ps, int fd, int64_t offset, int64_t length) {
 	return NO_ERROR;
 }
 
-int setVideoSurface(VideoState **ps, ANativeWindow* native_window) {
+int setVideoSurface(VideoState **ps, void* native_window) {
     printf("set_native_window\n");
 
 	VideoState *is = *ps;

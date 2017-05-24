@@ -29,8 +29,6 @@
 #include <libavutil/time.h>
 #include <libavutil/dict.h>
 
-#include <android/native_window_jni.h>
-
 #include <SDL.h>
 #include <SDL_thread.h>
 
@@ -38,12 +36,12 @@
 #include <math.h>
 
 #include <pthread.h>
-#include <audioplayer.h>
-#include <videoplayer.h>
+#include "audioplayer.h"
+#include "videoplayer.h"
 #include <unistd.h>
-#include <Errors.h>
+#include "Errors.h"
 
-#include <ffmpeg_utils.h>
+#include "ffmpeg_utils.h"
 
 #define SDL_AUDIO_BUFFER_SIZE 1024
 #define MAX_AUDIO_FRAME_SIZE 192000
@@ -228,7 +226,7 @@ VideoState *getNextMediaPlayer(VideoState **ps);
 void disconnect(VideoState **ps);
 int setDataSourceURI(VideoState **ps, const char *url, const char *headers);
 int setDataSourceFD(VideoState **ps, int fd, int64_t offset, int64_t length);
-int setVideoSurface(VideoState **ps, ANativeWindow* native_window);
+int setVideoSurface(VideoState **ps, void* native_window);
 int setListener(VideoState **ps,  void* clazz, void (*listener) (void*, int, int, int, int));
 int setMetadataFilter(VideoState **ps, char *allow[], char *block[]);
 int getMetadata(VideoState **ps, AVDictionary **metadata);

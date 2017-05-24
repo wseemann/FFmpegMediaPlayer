@@ -18,13 +18,13 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "FFmpegMediaPlayer"
-#include <android/log.h>
+//#include <android/log.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <Errors.h>
+#include "Errors.h"
 #include <pthread.h>
-#include <mediaplayer.h>
+#include "mediaplayer.h"
 
 extern "C" {
     #include "libavcodec/avcodec.h"
@@ -197,7 +197,7 @@ status_t MediaPlayer::getMetadata(bool update_only, bool apply_filter, AVDiction
     return ::getMetadata(&state, metadata);
 }
 
-status_t MediaPlayer::setVideoSurface(ANativeWindow* native_window)
+status_t MediaPlayer::setVideoSurface(void* native_window)
 {
 	//__android_log_write(ANDROID_LOG_DEBUG, LOG_TAG, "setVideoSurface");
     Mutex::Autolock _l(mLock);
