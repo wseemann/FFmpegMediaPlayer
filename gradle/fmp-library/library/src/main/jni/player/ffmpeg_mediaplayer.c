@@ -1775,7 +1775,17 @@ int setMetadataFilter(VideoState **ps, char *allow[], char *block[]) {
 }
 
 int getMetadata(VideoState **ps, AVDictionary **metadata) {
-	return 0;
+    printf("get_metadata\n");
+    
+    VideoState *state = *ps;
+    
+    if (!state || !state->pFormatCtx) {
+        return FAILURE;
+    }
+    
+    get_metadata_internal(state->pFormatCtx, metadata);
+    
+    return SUCCESS;
 }
 
 int main(int argc, char *argv[]) {
