@@ -27,6 +27,7 @@
 // for native audio
 #include <SLES/OpenSLES.h>
 #include <SLES/OpenSLES_Android.h>
+#include <SLES/OpenSLES_AndroidConfiguration.h>
 
 // for native asset manager
 #include <sys/types.h>
@@ -62,7 +63,7 @@ typedef struct AudioPlayer {
 } AudioPlayer;
 
 void createEngine(AudioPlayer **ps);
-void createBufferQueueAudioPlayer(AudioPlayer **ps, void *state, int numChannels, int samplesPerSec);
+void createBufferQueueAudioPlayer(AudioPlayer **ps, void *state, int numChannels, int samplesPerSec, int streamType);
 void setPlayingAudioPlayer(AudioPlayer **ps, int playstate);
 void setVolumeUriAudioPlayer(AudioPlayer **ps, int millibel);
 void queueAudioSamples(AudioPlayer **ps, void *state);

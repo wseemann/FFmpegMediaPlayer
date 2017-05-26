@@ -198,6 +198,8 @@ typedef struct VideoState {
   void *next;
 
   void *native_window;
+
+  int stream_type;
 } VideoState;
 
 struct AVDictionary {

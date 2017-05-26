@@ -470,6 +470,9 @@ status_t MediaPlayer::setAudioStreamType(int type)
     }
     // cache
     mStreamType = type;
+    if (state != 0) {
+        return ::setAudioStreamType(&state, type);
+    }
     return OK;
 }
 

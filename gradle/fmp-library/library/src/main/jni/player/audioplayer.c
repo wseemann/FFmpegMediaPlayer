@@ -1,7 +1,7 @@
 /*
  * FFmpegMediaPlayer: A unified interface for playing audio files and streams.
  *
- * Copyright 2016 William Seemann
+ * Copyright 2017 William Seemann
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
  * using OpenSL ES. See the corresponding Java source file located at:
  *
  *   src/com/example/nativeaudio/NativeAudio/NativeAudio.java
+ *   https://android.googlesource.com/platform/system/media/+/gingerbread/opensles/tests/mimeUri/slesTestPlayStreamType.cpp
  */
 
 #include <audioplayer.h>
@@ -82,7 +83,7 @@ void createEngine(AudioPlayer **ps)
 
 
 // create buffer queue audio player
-void createBufferQueueAudioPlayer(AudioPlayer **ps, void *state, int numChannels, int samplesPerSec)
+void createBufferQueueAudioPlayer(AudioPlayer **ps, void *state, int numChannels, int samplesPerSec, int streamType)
 {
     AudioPlayer *player = *ps;
 
@@ -110,12 +111,24 @@ void createBufferQueueAudioPlayer(AudioPlayer **ps, void *state, int numChannels
     SLDataSink audioSnk = {&loc_outmix, NULL};
 
     // create audio player
-    const SLInterfaceID ids[3] = {SL_IID_BUFFERQUEUE, SL_IID_EFFECTSEND,
-            /*SL_IID_MUTESOLO,*/ SL_IID_VOLUME};
-    const SLboolean req[3] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE,
-            /*SL_BOOLEAN_TRUE,*/ SL_BOOLEAN_TRUE};
+    const SLInterfaceID ids[4] = {SL_IID_BUFFERQUEUE, SL_IID_EFFECTSEND,
+            /*SL_IID_MUTESOLO,*/ SL_IID_VOLUME, SL_IID_ANDROIDCONFIGURATION};
+    const SLboolean req[4] = {SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE,
+            /*SL_BOOLEAN_TRUE,*/ SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE};
     result = (*player->engineEngine)->CreateAudioPlayer(player->engineEngine, &player->bqPlayerObject, &audioSrc, &audioSnk,
-            3, ids, req);
+            4, ids, req);
+    assert(SL_RESULT_SUCCESS == result);
+    (void)result;
+
+    // get the stream type interface
+    SLAndroidConfigurationItf playerConfig;
+    result = (*player->bqPlayerObject)->GetInterface(player->bqPlayerObject, SL_IID_ANDROIDCONFIGURATION, (void*)&playerConfig);
+    assert(SL_RESULT_SUCCESS == result);
+    (void)result;
+
+    // set the stream type
+    //SLint32 streamType = SL_ANDROID_STREAM_MEDIA;
+    result = (*playerConfig)->SetConfiguration(playerConfig, SL_ANDROID_KEY_STREAM_TYPE, &streamType, sizeof(SLint32));
     assert(SL_RESULT_SUCCESS == result);
     (void)result;
 
