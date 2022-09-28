@@ -1,10 +1,9 @@
 apply plugin: 'com.android.library'
 
 android {
-    android.packageBuildConfig = false
 
-    compileSdkVersion 23
-    buildToolsVersion "23.0.2"
+    compileSdkVersion 33
+    buildToolsVersion "32.0.0"
 
     def mkfile = "NDK_APPLICATION_MK=Application.mk"
     def aarname = "all-fmp"
@@ -29,7 +28,7 @@ android {
 
     defaultConfig {
         minSdkVersion 12
-        targetSdkVersion 25
+        targetSdkVersion 33
         versionCode 5
         versionName "1.0.4"
     }
@@ -72,20 +71,9 @@ android {
     tasks.withType(JavaCompile) {
         compileTask -> compileTask.dependsOn buildNative
     }
-
-    libraryVariants.all { variant ->
-        variant.outputs.each { output ->
-            def outputFile = output.outputFile
-            if (outputFile != null && outputFile.name.endsWith('.aar')) {
-                def fileName = "${aarname}.aar"
-                output.outputFile = new File(outputFile.parent, fileName)
-            }
-        }
-    }
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
 }
 
-apply from: 'maven-push.gradle'
