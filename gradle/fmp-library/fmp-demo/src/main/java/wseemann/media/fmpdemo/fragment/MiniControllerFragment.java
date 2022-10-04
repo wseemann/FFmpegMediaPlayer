@@ -33,7 +33,6 @@ import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -41,6 +40,8 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.TextView;
+
+import androidx.fragment.app.Fragment;
 
 public class MiniControllerFragment extends Fragment implements ServiceConnection {
 	
@@ -57,7 +58,7 @@ public class MiniControllerFragment extends Fragment implements ServiceConnectio
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 		
-		mToken = MusicUtils.bindToService(getActivity(), this);
+		mToken = MusicUtils.bindToService(requireActivity(), this);
     }
 	
 	@Override
@@ -192,6 +193,7 @@ public class MiniControllerFragment extends Fragment implements ServiceConnectio
 				return;
 			}
 		} catch (RemoteException ex) {
+			// No implementation
 		}
 		Animation fade_out = AnimationUtils.loadAnimation(getActivity(), R.anim.player_out);
 		mNowPlayingView.startAnimation(fade_out);
