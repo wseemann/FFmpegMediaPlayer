@@ -56,7 +56,7 @@ public class FMPDemo extends FragmentActivity implements ServiceConnection {
 
 		final EditText uriText = (EditText) findViewById(R.id.uri);
     	// Uncomment for debugging
-    	uriText.setText("http://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v");
+    	uriText.setText("");
     	
     	Intent intent = getIntent();
     	
