@@ -21,7 +21,6 @@ package wseemann.media;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
-import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -33,22 +32,15 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
-import android.media.AudioFormat;
 import android.media.AudioManager;
-import android.media.AudioTrack;
 
 import java.io.File;
 import java.io.FileDescriptor;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 
 /**
  * MediaPlayer class can be used to control playback
@@ -138,7 +130,7 @@ import java.lang.reflect.Method;
  *         error conditions, the internal player engine invokes a user supplied
  *         OnErrorListener.onError() method if an OnErrorListener has been
  *         registered beforehand via
- *         {@link #setOnErrorListener(android.media.MediaPlayer.OnErrorListener)}.
+ *         {@link #setOnErrorListener(OnErrorListener)}.
  *         <ul>
  *         <li>It is important to note that once an error occurs, the
  *         MediaPlayer object enters the <em>Error</em> state (except as noted
@@ -187,7 +179,7 @@ import java.lang.reflect.Method;
  *         the internal player engine then calls a user supplied callback method,
  *         onPrepared() of the OnPreparedListener interface, if an
  *         OnPreparedListener is registered beforehand via {@link
- *         #setOnPreparedListener(android.media.MediaPlayer.OnPreparedListener)}.</li>
+ *         #setOnPreparedListener(OnPreparedListener)}.</li>
  *         <li>It is important to note that
  *         the <em>Preparing</em> state is a transient state, and the behavior
  *         of calling any method with side effect while a MediaPlayer object is
@@ -540,67 +532,6 @@ public class FFmpegMediaPlayer
     
     private final static String TAG = "FFmpegMediaPlayer";
     
-    /*@SuppressLint("SdCardPath")
-	private static final String LIBRARY_PATH = "/data/data/";
-	
-	private static final String [] JNI_LIBRARIES = {
-		"libavutil.so",
-		"libavcodec.so",
-		"libavformat.so",
-		"libswresample.so",
-		"libffmpeg_mediaplayer_jni.so"		
-	};
-	
-    static {
-    	StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-    	
-    	StringBuffer path = null;
-    	File file = null;
-    	boolean foundLibs = false;
-    	
-    	for (int j = 0; j < stackTraceElements.length; j++) {
-    		String libraryPath = stackTraceElements[j].getClassName();
-    	
-    		String [] packageFragments = libraryPath.trim().split("\\.");
-    	
-    		path = new StringBuffer(LIBRARY_PATH);
-    	
-    		for (int i = 0; i < packageFragments.length; i++) {
-    			if (i > 0) {
-    				path.append(".");
-    			}
-    		
-    			path.append(packageFragments[i]);
-    			try {
-    				//System.load(path.toString() + "/lib/" + JNI_LIBRARIES[0]);
-    				file = new File(path.toString() + "/lib/" + JNI_LIBRARIES[0]);
-    				if (file.exists()) {
-    					path.append("/lib/");
-    					foundLibs = true;
-    					break;
-    				}
-    			} catch (UnsatisfiedLinkError ex) {
-    			}
-    		}
-    		
-    		if (foundLibs) {
-    			break;
-    		}
-    	}
-    	
-    	if (!foundLibs) {
-    		Log.e(TAG, TAG + " libraries not found. Did you forget to add them to your libs folder?");
-    		throw new UnsatisfiedLinkError();
-    	}
-    	
-    	for (int i = 0; i < JNI_LIBRARIES.length; i++) {
-    		System.load(path.toString() + JNI_LIBRARIES[i]);
-    	}
-    	
-        native_init();
-        initializeStaticCompatMethods();
-    }*/
-    
 	private static final String [] JNI_LIBRARIES = {
             "crypto",
             "ssl",
@@ -614,9 +545,9 @@ public class FFmpegMediaPlayer
 	};
     
     static {
-    	for (int i = 0; i < JNI_LIBRARIES.length; i++) {
-    		System.loadLibrary(JNI_LIBRARIES[i]);
-    	}
+        for (String jniLibrary : JNI_LIBRARIES) {
+            System.loadLibrary(jniLibrary);
+        }
 
         native_init();
     }
@@ -656,7 +587,7 @@ public class FFmpegMediaPlayer
         /* Native setup requires a weak reference to our object.
          * It's easier to create it here than in C++.
          */
-        native_setup(new WeakReference<FFmpegMediaPlayer>(this));
+        native_setup(new WeakReference<>(this));
     }
 
     /*
@@ -898,7 +829,6 @@ public class FFmpegMediaPlayer
 
         Log.d(TAG, "Couldn't open file on client side, trying server side");
         setDataSource(uri.toString(), headers);
-        return;
     }
 
     /**
@@ -1847,7 +1777,7 @@ public class FFmpegMediaPlayer
          *
          * @param mp the MediaPlayer that issued the seek operation
          */
-        public void onSeekComplete(FFmpegMediaPlayer mp);
+        void onSeekComplete(FFmpegMediaPlayer mp);
     }
 
     /**
@@ -1876,7 +1806,7 @@ public class FFmpegMediaPlayer
          * @param width     the width of the video
          * @param height    the height of the video
          */
-        public void onVideoSizeChanged(FFmpegMediaPlayer mp, int width, int height);
+        void onVideoSizeChanged(FFmpegMediaPlayer mp, int width, int height);
     }
 
     /**
