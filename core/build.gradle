@@ -32,13 +32,13 @@ afterEvaluate {
                 from components.release
 
                 groupId = 'com.github.wseemann'
-                artifactId = 'FFmpegMediaMetadataRetriever-core'
+                artifactId = 'FFmpegMediaPlayer-core'
                 version = "$project.android.defaultConfig.versionName"
 
                 pom {
-                    name = 'FFmpegMediaMetadataRetriever-core'
-                    description = 'FFmpegMediaMetadataRetriever library'
-                    url = 'https://github.com/wseemann/FFmpegMediaMetadataRetriever'
+                    name = 'FFmpegMediaPlayer-core'
+                    description = 'FFmpegMediaPlayer library'
+                    url = 'https://github.com/wseemann/FFmpegMediaPlayer'
                     packaging = 'aar'
                     licenses {
                         license {
@@ -54,9 +54,9 @@ afterEvaluate {
                         }
                     }
                     scm {
-                        connection = 'scm:hg:https://github.com/wseemann/FFmpegMediaMetadataRetriever'
-                        developerConnection = 'scm:hg:https://github.com/wseemann/FFmpegMediaMetadataRetriever'
-                        url = 'https://github.com/wseemann/FFmpegMediaMetadataRetriever'
+                        connection = 'scm:hg:https://github.com/wseemann/FFmpegMediaPlayer'
+                        developerConnection = 'scm:hg:https://github.com/wseemann/FFmpegMediaPlayer'
+                        url = 'https://github.com/wseemann/FFmpegMediaPlayer'
                     }
                 }
             }
@@ -66,7 +66,9 @@ afterEvaluate {
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.5.1'
+
     testImplementation 'junit:junit:4.13.2'
+
     androidTestImplementation 'androidx.test:runner:1.4.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
 }

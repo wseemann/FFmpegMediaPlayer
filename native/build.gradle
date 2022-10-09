@@ -136,8 +136,8 @@ afterEvaluate {
 
                 pom {
                     name = "$pomName"
-                    description = 'FFmpegMediaMetadataRetriever library'
-                    url = 'https://github.com/wseemann/FFmpegMediaMetadataRetriever'
+                    description = 'FFmpegMediaPlayer library'
+                    url = 'https://github.com/wseemann/FFmpegMediaPlayer'
                     packaging = 'aar'
                     licenses {
                         license {
@@ -153,9 +153,9 @@ afterEvaluate {
                         }
                     }
                     scm {
-                        connection = 'scm:hg:https://github.com/wseemann/FFmpegMediaMetadataRetriever'
-                        developerConnection = 'scm:hg:https://github.com/wseemann/FFmpegMediaMetadataRetriever'
-                        url = 'https://github.com/wseemann/FFmpegMediaMetadataRetriever'
+                        connection = 'scm:hg:https://github.com/wseemann/FFmpegMediaPlayer'
+                        developerConnection = 'scm:hg:https://github.com/wseemann/FFmpegMediaPlayer'
+                        url = 'https://github.com/wseemann/FFmpegMediaPlayer'
                     }
                 }
             }
