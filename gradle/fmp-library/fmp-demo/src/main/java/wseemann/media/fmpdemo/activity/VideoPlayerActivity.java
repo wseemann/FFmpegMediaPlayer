@@ -41,7 +41,7 @@ public class VideoPlayerActivity extends FragmentActivity {
 
         final EditText uriText = (EditText) findViewById(R.id.uri);
         // Uncomment for debugging
-        uriText.setText("http://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v");
+        uriText.setText("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
 
         Intent intent = getIntent();
 
