@@ -1,10 +1,11 @@
 .DS_Store
 
+# Gradle files
+.gradle/
 build/
 
 .idea/*
 !.idea/runConfigurations
-
 
 local.properties
 

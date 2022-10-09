@@ -8,6 +8,8 @@ def pomName = ''
 def pomArtifactId = ""
 
 android {
+    namespace 'wseemann.media'
+
     buildFeatures {
         buildConfig = false
     }

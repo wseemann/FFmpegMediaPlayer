@@ -1,4 +1,5 @@
 # Gradle files
+.gradle/
 build/
 
 # IntelliJ
@@ -14,3 +15,9 @@ build/
 .idea/modules.xml
 # Comment next line if keeping position of elements in Navigation Editor is relevant for you
 .idea/navEditor.xml
+
+src/main/libs/armeabi-v7a/
+src/main/libs/x86/
+src/main/libs/x86_64/
+src/main/libs/arm64-v8a/
+src/main/obj/

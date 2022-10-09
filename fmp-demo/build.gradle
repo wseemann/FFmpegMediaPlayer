@@ -1,6 +1,8 @@
 apply plugin: 'com.android.application'
 
 android {
+    namespace 'wseemann.media.fmpdemo'
+
     compileSdk versions.get("compileSdkVersion")
 
     defaultConfig {
