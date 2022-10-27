@@ -25,8 +25,11 @@ Overview
 
 FFmpegMediaPlayer is a reimplementation of Android's MediaPlayer class. The FFmpegMediaPlayer class provides a unified interface for playing audio files and streams.
 
+This project uses FFmpeg version 4.2.2.
+
 Key Features:
-* ARM, ARMv7, x86, x86_64, MIPS and ARM_64 support
+* ARMv7, x86, x86_64 and ARM_64 support (Note: ARM and MIPS aren't supported as of version 1.0.4)
+* Support for API 16+
 
 * Support for additional formats and protocols not provided by Android's MediaPlayer class
 
@@ -45,7 +48,18 @@ Using FMP in your application (Android Studio)
 Add the following maven dependency to your project's `build.gradle` file:
 
     dependencies {
-        compile 'com.github.wseemann:FFmpegMediaPlayer:1.0.4'
+        implementation 'com.github.wseemann:FFmpegMediaPlayer-core:1.0.5'
+        implementation 'com.github.wseemann:FFmpegMediaPlayer-native:1.0.5'
+    }
+
+Optionally, to support individual ABIs:
+
+    dependencies {
+        implementation 'com.github.wseemann:FFmpegMediaPlayer-core:1.0.5'
+        implementation 'com.github.wseemann:FFmpegMediaPlayer-native-armeabi-v7a:1.0.5'
+        implementation 'com.github.wseemann:FFmpegMediaPlayer-native-x86:1.0.5'
+        implementation 'com.github.wseemann:FFmpegMediaPlayer-native-x86_64:1.0.5'
+        implementation 'com.github.wseemann:FFmpegMediaPlayer-native-arm64-v8a:1.0.5'
     }
 
 or, if your application supports individual architectures extract the appropriate AAR file into you projects "libs" folder:
@@ -72,8 +86,8 @@ The modules are also included with the library. If you don't want to build the m
 you can simple unzip the prebuilt ones and copy them to your projects "libs" folder. (Note:
 copy them to YOUR projects "libs" folder, NOT the "libs" folder located in
 FFmpegMediaPlayer/fmp-library. Once this step is complete you can use the
-library (See: Installation in Eclipse (Kepler)). If you want to compile the modules yourself
-follow the Ant instructions listed below before attempting to use the library.
+library. If you want to compile the modules yourself follow the build instructions
+listed below before attempting to use the library.
 
 Download and install the [Android SDK](http://developer.android.com/sdk/index.html).
 Download the [Android NDK](http://developer.android.com/tools/sdk/ndk/index.html).
@@ -81,58 +95,29 @@ Clone/Download/Fork the repo through GitHub or via (read-only)
 
     git clone https://github.com/wseemann/FFmpegMediaPlayer.git
 
-### Ant
+### Android Studio (Gradle)
 
 Note: The build instructions and scripts assume you are running Unix or Linux. Building
 on other operating systems is currently not supported.
 
-Execute the following in the FFmpegMediaPlayer/fmp-library/
-directory (assuming /path/to/android_sdk/tools is in your PATH):
+Execute the following in the root project directory (assuming /path/to/android_sdk/tools is in your PATH):
 
     android update project --path .
 
 Open the newly created local.properties file and add the following lines:
 
+    sdk.dir=<path to SDK>
     ndk.dir=<path to NDK>
-    libs.dir=<path to target libs folder>
+
+where <path to SDK> is the path to your Android SDK, for example:
+
+    sdk.dir=/Users/wseemann/Library/Android/sdk
 
 where <path to NDK> is the path to your Android NDK, for example:
 
-    ndk.dir=/home/wseemann/Android/android-ndk-r8e
+    ndk.dir=/home/wseemann/Android/android-ndk-r20
 
-and <path to target libs folder> is the path to the "libs" folder in the project that will use the
-library, for example:
-
-    libs.dir=/home/wseemann/Android/MyAndroidDemo/libs
-
-**Note:** If you wish to enable https support (for use with API 8+ only) navigate to FFmpegMediaPlayer/fmp-library/ and execute
-
-    ant build-ffmpeg-with-ssl
-
-To compile the library, navigate to FFmpegMediaPlayer/fmp-library/ and
-execute
-
-    ant clean debug
-
-### Installation in Eclipse (Kepler)
-
-The first step is to choose File > Import or right-click in the Project Explorer
-and choose Import. If you don't use E-Git to integrate Eclipse with Git, skip
-the rest of this paragraph. Choose "Projects from Git" as the import source.
-From the Git page, click Clone, and enter the URI of this repository. That's the
-only text box to fill in on that page. On the following pages, choose which
-branches to clone (probably all of them) and where to keep the local checkout,
-and then click Finish. Once the clone has finished, pick your new repository
-from the list, and on the following page select 'Use the New Projects wizard'.
-
-From here the process is the same even if you don't use E-Git. Choose 'Android
-Project from Existing Code' and then browse to where you checked out 
-FFmpegMediaPlayer. Select the fmp-library folder and click Finish.
-
-Finally, to add the library to your application project, right-click your
-project in the Package Explorer and select Properties. Pick the "Android" page,
-and click "Add..." from the bottom half. You should see a list including the
-FFmpegMediaPlayer project as well as any others in your workspace.
+To compile the library in Android Studio, highlight `core` in the project explorer and run Build->Make Module 'core'. This will also build the native FFmpeg binaries.
 
 Usage
 ------------

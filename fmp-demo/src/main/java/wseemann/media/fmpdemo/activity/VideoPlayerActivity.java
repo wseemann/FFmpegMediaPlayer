@@ -41,7 +41,7 @@ public class VideoPlayerActivity extends FragmentActivity {
 
         final EditText uriText = (EditText) findViewById(R.id.uri);
         // Uncomment for debugging
-        uriText.setText("");
+        uriText.setText("https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4");
 
         Intent intent = getIntent();
 
@@ -148,19 +148,11 @@ public class VideoPlayerActivity extends FragmentActivity {
         mMediaPlayer.stop();
     }
 
-    private FFmpegMediaPlayer.OnPreparedListener mOnPreparedListener = new FFmpegMediaPlayer.OnPreparedListener() {
-        @Override
-        public void onPrepared(FFmpegMediaPlayer mp) {
-            mp.start();
-        }
-    };
+    private FFmpegMediaPlayer.OnPreparedListener mOnPreparedListener = mp -> mp.start();
 
-    private FFmpegMediaPlayer.OnErrorListener mOnErrorListener = new FFmpegMediaPlayer.OnErrorListener() {
-        @Override
-        public boolean onError(FFmpegMediaPlayer mp, int what, int extra) {
-            Log.d(VideoPlayerActivity.class.getName(), "Error: " + what);
-            return true;
-        }
+    private FFmpegMediaPlayer.OnErrorListener mOnErrorListener = (mp, what, extra) -> {
+        Log.d(VideoPlayerActivity.class.getName(), "Error: " + what);
+        return true;
     };
 
     @Override

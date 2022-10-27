@@ -26,8 +26,15 @@ android {
 }
 
 dependencies {
-    implementation project(':native')
-    implementation project(':core')
+    implementation 'com.github.wseemann:FFmpegMediaPlayer-core:1.0.5'
+    implementation 'com.github.wseemann:FFmpegMediaPlayer-native:1.0.5'
+    //implementation 'com.github.wseemann:FFmpegMediaPlayer-native-armeabi-v7a:1.0.5'
+    //implementation 'com.github.wseemann:FFmpegMediaPlayer-native-x86:1.0.5'
+    //implementation 'com.github.wseemann:FFmpegMediaPlayer-native-x86_64:1.0.5'
+    //implementation 'com.github.wseemann:FFmpegMediaPlayer-native-arm64-v8a:1.0.5'
+
+    //implementation project(':native')
+    //implementation project(':core')
 
     implementation 'androidx.appcompat:appcompat:1.5.1'
 
